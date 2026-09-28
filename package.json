@@ -1,0 +1,38 @@
+{
+  "name": "@avsholeh/opencode-mini-session",
+  "version": "0.1.0",
+  "description": "Floating mini side-chat overlay for the opencode TUI",
+  "license": "MIT",
+  "type": "module",
+  "exports": {
+    "./tui": "./dist/index.js"
+  },
+  "files": [
+    "dist",
+    "README.md",
+    "LICENSE",
+    "CHANGELOG.md"
+  ],
+  "engines": {
+    "opencode": ">=1.18 <2"
+  },
+  "dependencies": {
+    "@opentui/core": "^0.5.11",
+    "@opentui/solid": "^0.5.11",
+    "solid-js": "^1.9.12"
+  },
+  "peerDependencies": {
+    "@opencode-ai/plugin": "^1.18.27"
+  },
+  "devDependencies": {
+    "@opencode-ai/plugin": "^1.18.27",
+    "@opencode-ai/sdk": "^1.18.30",
+    "@types/node": "^24.0.0",
+    "typescript": "^5.8.2"
+  },
+  "scripts": {
+    "build": "bun scripts/build.mjs",
+    "prepack": "bun scripts/build.mjs",
+    "typecheck": "tsc --noEmit"
+  }
+}
