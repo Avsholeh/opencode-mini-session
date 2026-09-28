@@ -1,7 +1,7 @@
-import solidPlugin from "@opentui/solid/bun-plugin"
+import solidPlugin from "@opentui/solid/bun-plugin";
 
 const result = await Bun.build({
-  entrypoints: ["./src/tui.tsx"],
+  entrypoints: ["./src/index.ts"],
   outdir: "./dist",
   naming: "index.js",
   target: "bun",
@@ -15,9 +15,9 @@ const result = await Bun.build({
     "@opentui/solid",
     "solid-js",
   ],
-})
+});
 
 if (!result.success) {
-  for (const log of result.logs) console.error(log)
-  process.exit(1)
+  for (const log of result.logs) console.error(log);
+  process.exit(1);
 }

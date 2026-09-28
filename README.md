@@ -66,12 +66,12 @@ Options are passed as the second element of the `plugin` tuple:
 }
 ```
 
-| Option         | Type                          | Default          | Description                                      |
-| -------------- | ----------------------------- | ---------------- | ------------------------------------------------ |
-| `contextTurns` | `number`                      | `8`              | How many recent main-session turns to copy. `0` copies everything. |
-| `thinking`     | `boolean`                     | `false`          | Show reasoning/thinking parts.                   |
-| `size`         | `"medium" \| "large" \| "xlarge"` | `"large"`   | Overlay size.                                    |
-| `keybinds`     | `{ "mini.open": string }`     | `ctrl+shift+m`   | Keybind used to open the overlay.                |
+| Option         | Type                              | Default        | Description                                                        |
+| -------------- | --------------------------------- | -------------- | ------------------------------------------------------------------ |
+| `contextTurns` | `number`                          | `8`            | How many recent main-session turns to copy. `0` copies everything. |
+| `thinking`     | `boolean`                         | `false`        | Show reasoning/thinking parts.                                     |
+| `size`         | `"medium" \| "large" \| "xlarge"` | `"large"`      | Overlay size.                                                      |
+| `keybinds`     | `{ "mini.open": string }`         | `ctrl+shift+m` | Keybind used to open the overlay.                                  |
 
 ## Troubleshooting
 
