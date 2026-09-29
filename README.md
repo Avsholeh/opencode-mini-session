@@ -33,15 +33,17 @@ reproducibility.
 
 ## Usage
 
-- **`ctrl+shift+m`** or **`/mini`** — open a mini session and copy the last few
+- **`<leader>i`** or **`/mini`** — open a mini session and copy the last few
   turns of context from the current main session.
-- **`/mini-fresh`** — open a mini session without copying context.
+- **`<leader>o`** or **`/mini-fresh`** — open a mini session without copying
+  context.
 - **`/mini-send`** — copy the mini transcript into the main session and keep the
   mini session open.
 - **`/mini-done`** — copy the transcript into the main session, then close the
   mini session.
 - **`/mini-close`** — close the mini session without sending anything.
-- **`/mini-clean`** — delete every mini session created for this project.
+- **`/mini-clean`** or **`<leader>d`** — delete every mini session created for
+  this project.
 
 In the overlay, press `enter` to send and `esc` to close.
 
@@ -59,19 +61,26 @@ Options are passed as the second element of the `plugin` tuple:
         "contextTurns": 8,
         "thinking": false,
         "size": "large",
-        "keybinds": { "mini.open": "ctrl+shift+m" }
+        "keybinds": {
+          "mini.open": "<leader>i",
+          "mini.fresh": "<leader>o",
+          "mini.clean": "<leader>d"
+        }
       }
     ]
   ]
 }
 ```
 
-| Option         | Type                              | Default        | Description                                                        |
-| -------------- | --------------------------------- | -------------- | ------------------------------------------------------------------ |
-| `contextTurns` | `number`                          | `8`            | How many recent main-session turns to copy. `0` copies everything. |
-| `thinking`     | `boolean`                         | `false`        | Show reasoning/thinking parts.                                     |
-| `size`         | `"medium" \| "large" \| "xlarge"` | `"large"`      | Overlay size.                                                      |
-| `keybinds`     | `{ "mini.open": string }`         | `ctrl+shift+m` | Keybind used to open the overlay.                                  |
+| Option         | Type                                                  | Default        | Description                                                                        |
+| -------------- | ----------------------------------------------------- | -------------- | ---------------------------------------------------------------------------------- |
+| `contextTurns` | `number`                                              | `8`            | How many recent main-session turns to copy. `0` copies everything.                 |
+| `thinking`     | `boolean`                                             | `false`        | Show reasoning/thinking parts.                                                     |
+| `size`         | `"medium" \| "large" \| "xlarge"`                     | `"large"`      | Overlay size.                                                                      |
+| `keybinds`     | `{ "mini.open"?: string; "mini.fresh"?: string; "mini.clean"?: string }` | see below | Keybinds used to open the overlay with (`<leader>i`) or without (`<leader>o`) context, and to clean all mini sessions (`<leader>d`). |
+
+`<leader>` resolves to the leader key configured in `tui.json` (default
+`ctrl+x`).
 
 ## Troubleshooting
 

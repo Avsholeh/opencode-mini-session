@@ -14,6 +14,8 @@ describe("parseConfig", () => {
       thinking: true,
       size: "xlarge",
       openKey: DEFAULTS.openKey,
+      freshKey: DEFAULTS.freshKey,
+      cleanKey: DEFAULTS.cleanKey,
     });
   });
 
@@ -41,10 +43,34 @@ describe("parseConfig", () => {
     );
   });
 
+  test("reads fresh keybind from nested keybinds", () => {
+    expect(parseConfig({ keybinds: { "mini.fresh": "ctrl+n" } }).freshKey).toBe(
+      "ctrl+n",
+    );
+  });
+
+  test("reads clean keybind from nested keybinds", () => {
+    expect(parseConfig({ keybinds: { "mini.clean": "ctrl+l" } }).cleanKey).toBe(
+      "ctrl+l",
+    );
+  });
+
   test("falls back on empty or non-record keybinds", () => {
     expect(parseConfig({ keybinds: { "mini.open": "  " } }).openKey).toBe(
       DEFAULTS.openKey,
     );
+    expect(parseConfig({ keybinds: { "mini.fresh": "  " } }).freshKey).toBe(
+      DEFAULTS.freshKey,
+    );
+    expect(parseConfig({ keybinds: { "mini.clean": "  " } }).cleanKey).toBe(
+      DEFAULTS.cleanKey,
+    );
     expect(parseConfig({ keybinds: "ctrl+m" }).openKey).toBe(DEFAULTS.openKey);
+    expect(parseConfig({ keybinds: "ctrl+m" }).freshKey).toBe(
+      DEFAULTS.freshKey,
+    );
+    expect(parseConfig({ keybinds: "ctrl+m" }).cleanKey).toBe(
+      DEFAULTS.cleanKey,
+    );
   });
 });

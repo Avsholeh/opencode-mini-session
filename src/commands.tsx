@@ -172,6 +172,18 @@ export function registerCommands(api: TuiPluginApi, deps: Deps) {
         desc: "Mini: open overlay",
         group: "Mini",
       },
+      {
+        key: deps.config.freshKey,
+        cmd: "mini.fresh",
+        desc: "Mini: open without context",
+        group: "Mini",
+      },
+      {
+        key: deps.config.cleanKey,
+        cmd: "mini.clean",
+        desc: "Mini: clean all",
+        group: "Mini",
+      },
     ],
   });
 }
