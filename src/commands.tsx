@@ -1,11 +1,17 @@
 /** @jsxImportSource @opentui/solid */
-import type { TuiPluginApi } from "@opencode-ai/plugin/tui";
+import type { Renderable, TuiPluginApi } from "@opencode-ai/plugin/tui";
+import { createSignal, Show } from "solid-js";
 import type { MiniConfig } from "./config";
 import type { HostPort } from "./host";
 import type { FinishMode, MiniSessions, MiniTarget } from "./sessions";
 import { MiniChat } from "./ui/mini-chat";
 
 type Deps = { sessions: MiniSessions; host: HostPort; config: MiniConfig };
+
+const [overlay, setOverlay] = createSignal<MiniTarget>();
+
+let previousFocus: Renderable | null = null;
+let popMiniMode: (() => void) | undefined;
 
 function toast(
   api: TuiPluginApi,
@@ -15,20 +21,29 @@ function toast(
   api.ui.toast({ message, variant, duration: 4000 });
 }
 
-function openOverlay(api: TuiPluginApi, deps: Deps, target: MiniTarget) {
-  api.ui.dialog.replace(
-    () => (
-      <MiniChat
-        api={api}
-        host={deps.host}
-        cfg={deps.config}
-        main={target.main}
-        mini={target.mini}
-      />
-    ),
-    () => {},
-  );
-  api.ui.dialog.setSize(deps.config.size);
+function showOverlay(api: TuiPluginApi, target: MiniTarget) {
+  if (overlay()) {
+    setOverlay(target);
+    return;
+  }
+  previousFocus = api.renderer.currentFocusedRenderable;
+  popMiniMode = api.mode.push("mini");
+  setOverlay(target);
+}
+
+function hideOverlay(api: TuiPluginApi) {
+  setOverlay(undefined);
+  popMiniMode?.();
+  popMiniMode = undefined;
+  const focus = previousFocus;
+  previousFocus = null;
+  setTimeout(() => {
+    if (focus && !focus.isDestroyed) focus.focus();
+  }, 0);
+}
+
+function openOverlay(api: TuiPluginApi, target: MiniTarget) {
+  showOverlay(api, target);
 }
 
 async function openMini(api: TuiPluginApi, deps: Deps, copy: boolean) {
@@ -41,7 +56,7 @@ async function openMini(api: TuiPluginApi, deps: Deps, copy: boolean) {
     toast(api, message, result.reason === "no-target" ? "warning" : "error");
     return;
   }
-  openOverlay(api, deps, result.value.target);
+  openOverlay(api, result.value.target);
   if (result.value.warning) toast(api, result.value.warning, "warning");
 }
 
@@ -75,7 +90,7 @@ async function finishMini(api: TuiPluginApi, deps: Deps, mode: FinishMode) {
     toast(api, "Mini session closed.", "success");
   }
 
-  if (closed) api.ui.dialog.clear();
+  if (closed) hideOverlay(api);
 }
 
 async function cleanMinis(api: TuiPluginApi, deps: Deps) {
@@ -92,7 +107,7 @@ async function cleanMinis(api: TuiPluginApi, deps: Deps) {
       : "No mini sessions to purge.",
     "success",
   );
-  if (closed) api.ui.dialog.clear();
+  if (closed) hideOverlay(api);
 }
 
 export function registerCommands(api: TuiPluginApi, deps: Deps) {
@@ -173,5 +188,68 @@ export function registerCommands(api: TuiPluginApi, deps: Deps) {
         group: "Mini",
       },
     ],
+  });
+
+  const cycleKey = api.tuiConfig.keybinds.get("agent.cycle")?.[0]?.key ?? "tab";
+  const reverseKey =
+    api.tuiConfig.keybinds.get("agent.cycle.reverse")?.[0]?.key ?? "shift+tab";
+
+  api.keymap.registerLayer({
+    mode: "mini",
+    commands: [
+      {
+        name: "mini.hide",
+        title: "Mini: hide overlay",
+        desc: "Hide the mini overlay without deleting the session",
+        category: "Mini",
+        hidden: true,
+        run() {
+          hideOverlay(api);
+        },
+      },
+    ],
+    bindings: [
+      {
+        key: "escape",
+        cmd: "mini.hide",
+        desc: "Hide mini overlay",
+        group: "Mini",
+      },
+      {
+        key: cycleKey,
+        cmd: "agent.cycle",
+        desc: "Next agent",
+        group: "Mini",
+      },
+      {
+        key: reverseKey,
+        cmd: "agent.cycle.reverse",
+        desc: "Previous agent",
+        group: "Mini",
+      },
+    ],
+  });
+
+  const Dialog = api.ui.Dialog;
+  api.slots.register({
+    slots: {
+      app() {
+        return (
+          <Show when={overlay()}>
+            {(target) => (
+              <Dialog size={deps.config.size} onClose={() => hideOverlay(api)}>
+                <MiniChat
+                  api={api}
+                  cfg={deps.config}
+                  main={target().main}
+                  mini={target().mini}
+                  onHide={() => hideOverlay(api)}
+                />
+              </Dialog>
+            )}
+          </Show>
+        );
+      },
+    },
   });
 }

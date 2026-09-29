@@ -43,7 +43,16 @@ reproducibility.
 - **`/mini-close`** — close the mini session without sending anything.
 - **`/mini-clean`** — delete every mini session created for this project.
 
-In the overlay, press `enter` to send and `esc` to close.
+The overlay uses the standard opencode prompt, so it supports **`/` slash
+commands**, **`@` file mentions**, shell mode, history, and paste. The agent and
+model are shared with the main session.
+
+- `enter` — send the prompt to the mini session.
+- `tab` / `shift+tab` — cycle the plan/build agent (affects the main session
+  too).
+- `esc` — hide the overlay. The mini session is kept; run `/mini` to reopen it.
+- `/mini-close` — delete the mini session and close the overlay. Nothing is sent
+  to the main session.
 
 ## Options
 

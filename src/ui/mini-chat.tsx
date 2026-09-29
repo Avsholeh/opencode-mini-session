@@ -1,50 +1,24 @@
 /** @jsxImportSource @opentui/solid */
-import { useTerminalDimensions } from "@opentui/solid";
-import { For, Show, type JSX } from "solid-js";
-import type { TextareaRenderable, KeyBinding } from "@opentui/core";
 import type { TuiPluginApi } from "@opencode-ai/plugin/tui";
 import type { Part } from "@opencode-ai/sdk/v2";
+import { useTerminalDimensions } from "@opentui/solid";
+import { For, Show, type JSX } from "solid-js";
 import type { MiniConfig } from "../config";
-import type { HostPort } from "../host";
 import { CONTEXT_PREFIX, shortID } from "../markers";
-import { describe } from "../result";
-
-const MINI_KEYBINDINGS: KeyBinding[] = [
-  { name: "return", action: "submit" },
-  { name: "kpenter", action: "submit" },
-  { name: "return", shift: true, action: "newline" },
-  { name: "kpenter", shift: true, action: "newline" },
-];
 
 export function MiniChat(props: {
   api: TuiPluginApi;
-  host: HostPort;
   cfg: MiniConfig;
   main: string;
   mini: string;
+  onHide: () => void;
 }): JSX.Element {
   const dim = useTerminalDimensions();
   const theme = () => props.api.theme.current;
   const messages = () => props.api.state.session.messages(props.mini);
   const height = () =>
     Math.max(6, Math.min(26, Math.floor(dim().height * 0.45)));
-
-  let input: TextareaRenderable | undefined;
-
-  const focus = (ref: TextareaRenderable | undefined) => {
-    input = ref;
-    if (!ref) return;
-    setTimeout(() => ref.focus(), 1);
-  };
-
-  const send = () => {
-    const node = input;
-    if (!node) return;
-    const text = node.plainText.trim();
-    if (!text) return;
-    node.clear();
-    void submitPrompt(props.host, props.api, props.main, props.mini, text);
-  };
+  const Prompt = props.api.ui.Prompt;
 
   return (
     <box
@@ -56,17 +30,14 @@ export function MiniChat(props: {
     >
       <box flexDirection="row" justifyContent="space-between">
         <text fg={theme().text}>
-          <b>Mini session</b>
+          <b>Mini</b>
           <span style={{ fg: theme().textMuted }}>
             {" "}
-            · main {shortID(props.main)}
+            · {shortID(props.main)}
           </span>
         </text>
-        <text
-          fg={theme().textMuted}
-          onMouseUp={() => props.api.ui.dialog.clear()}
-        >
-          esc close
+        <text fg={theme().textMuted} onMouseUp={() => props.onHide()}>
+          esc hide · /mini-close
         </text>
       </box>
 
@@ -116,25 +87,13 @@ export function MiniChat(props: {
         </Show>
       </scrollbox>
 
-    <box padding={1} backgroundColor={theme().backgroundElement}>
-      <textarea
-        ref={focus}
-        height={3}
-        padding={1}
-        keyBindings={MINI_KEYBINDINGS}
-        placeholder="Ask a side question…"
-        textColor={theme().text}
-        focusedTextColor={theme().text}
-        placeholderColor={theme().textMuted}
-        backgroundColor={theme().backgroundElement}
-        focusedBackgroundColor={theme().backgroundElement}
-        onSubmit={send}
+      <Prompt
+        sessionID={props.mini}
+        ref={(ref) => {
+          if (ref) setTimeout(() => ref.focus(), 1);
+        }}
+        placeholders={{ normal: ["Ask a side question…"] }}
       />
-    </box>
-
-      <text fg={theme().textMuted}>
-        enter send · esc close · /mini-send · /mini-done · /mini-close
-      </text>
     </box>
   );
 }
@@ -168,23 +127,4 @@ function PartView(props: {
   if (part.type === "subtask")
     return <text fg={theme().textMuted}>[subtask: {part.description}]</text>;
   return null;
-}
-
-async function submitPrompt(
-  host: HostPort,
-  api: TuiPluginApi,
-  main: string,
-  mini: string,
-  text: string,
-) {
-  try {
-    const inherited = host.lastUserModel(main);
-    await host.prompt(mini, { parts: [{ type: "text", text }], ...inherited });
-  } catch (error) {
-    api.ui.toast({
-      message: `mini-session: ${describe(error)}`,
-      variant: "error",
-      duration: 4000,
-    });
-  }
 }
