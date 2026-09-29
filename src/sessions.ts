@@ -118,7 +118,7 @@ export function createMiniSessions(deps: {
         const target = await resolveTarget();
         if (!target) {
           return fail(
-            "No mini session found. Open one with /mini or ctrl+shift+m.",
+            "No mini session found. Open one with /mini or <leader>i.",
             "no-target",
           );
         }
