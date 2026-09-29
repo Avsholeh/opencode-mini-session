@@ -116,9 +116,11 @@ export function MiniChat(props: {
         </Show>
       </scrollbox>
 
+    <box padding={1} backgroundColor={theme().backgroundElement}>
       <textarea
         ref={focus}
         height={3}
+        padding={1}
         keyBindings={MINI_KEYBINDINGS}
         placeholder="Ask a side question…"
         textColor={theme().text}
@@ -128,6 +130,7 @@ export function MiniChat(props: {
         focusedBackgroundColor={theme().backgroundElement}
         onSubmit={send}
       />
+    </box>
 
       <text fg={theme().textMuted}>
         enter send · esc close · /mini-send · /mini-done · /mini-close
