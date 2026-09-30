@@ -2,7 +2,11 @@ import type { MiniConfig } from "./config";
 import type { HostPort } from "./host";
 import { CONTEXT_PREFIX, isMiniTitle, mainMarker, miniTitle } from "./markers";
 import { describe, fail, ok, type Result } from "./result";
-import { renderTranscript, type Entry } from "./transcript";
+import {
+  renderDeliveryTranscript,
+  renderTranscript,
+  type Entry,
+} from "./transcript";
 
 export type MiniTarget = { main: string; mini: string };
 
@@ -52,7 +56,7 @@ export function createMiniSessions(deps: {
 
   async function transcriptOf(mini: string): Promise<string> {
     const entries: Array<Entry> = await host.messages(mini);
-    return renderTranscript(entries, config.thinking);
+    return renderDeliveryTranscript(entries, config.thinking);
   }
 
   async function findByMarker(): Promise<MiniTarget | undefined> {

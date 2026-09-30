@@ -38,9 +38,10 @@ reproducibility.
 - **`<leader>o`** or **`/mini-fresh`** — open a mini session without copying
   context.
 - **`/mini-send`** — copy the mini transcript into the main session and keep the
-  mini session open.
+  mini session open. Only human-readable text is sent; tool, file, agent, and
+  subtask activity is omitted to keep main-session context lean.
 - **`/mini-done`** — copy the transcript into the main session, then close the
-  mini session.
+  mini session. Same text-only delivery as `/mini-send`.
 - **`/mini-close`** — close the mini session without sending anything.
 - **`/mini-clean`** or **`<leader>d`** — delete every mini session created for
   this project.

@@ -194,6 +194,91 @@ describe("finish", () => {
     expect(host.deleted).not.toContain(mini);
   });
 
+  test("send strips tool, file, agent and subtask parts", async () => {
+    const opened = await sessions.open(false);
+    if (!opened.ok) throw new Error("open failed");
+    const mini = opened.value.target.mini;
+    const mixed = (role: "user" | "assistant", parts: Array<unknown>): Entry =>
+      ({
+        info: { role } as unknown as Message,
+        parts: parts as unknown as Entry["parts"],
+      }) as Entry;
+    host.messagesBy.set(mini, [
+      mixed("user", [{ type: "text", text: "hi" }]),
+      mixed("assistant", [
+        { type: "text", text: "done" },
+        { type: "tool", tool: "bash" },
+        { type: "file", filename: "a.ts" },
+        { type: "agent", name: "build" },
+        { type: "subtask", description: "do it" },
+      ]),
+    ]);
+    host.prompts = [];
+
+    const result = await sessions.finish("send");
+    expect(result.ok).toBe(true);
+    if (!result.ok) return;
+    expect(result.value.delivered).toBe(true);
+    const text = host.prompts.at(-1)!.input.parts[0].text;
+    expect(text).toContain("User:\nhi");
+    expect(text).toContain("Assistant:\ndone");
+    expect(text).not.toContain("[tool:");
+    expect(text).not.toContain("[file:");
+    expect(text).not.toContain("[agent:");
+    expect(text).not.toContain("[subtask:");
+  });
+
+  test("send treats a tool-only mini as empty", async () => {
+    const opened = await sessions.open(false);
+    if (!opened.ok) throw new Error("open failed");
+    const mini = opened.value.target.mini;
+    host.messagesBy.set(mini, [
+      {
+        info: { role: "assistant" } as unknown as Message,
+        parts: [{ type: "tool", tool: "bash" } as unknown as Part],
+      },
+    ]);
+    host.prompts = [];
+
+    const result = await sessions.finish("send");
+    expect(result.ok).toBe(true);
+    if (!result.ok) return;
+    expect(result.value).toEqual({ delivered: false, closed: false });
+    expect(host.prompts).toHaveLength(0);
+  });
+
+  test("send drops the injected mini-context block", async () => {
+    const opened = await sessions.open(false);
+    if (!opened.ok) throw new Error("open failed");
+    const mini = opened.value.target.mini;
+    const mixed = (role: "user" | "assistant", parts: Array<unknown>): Entry =>
+      ({
+        info: { role } as unknown as Message,
+        parts: parts as unknown as Entry["parts"],
+      }) as Entry;
+    host.messagesBy.set(mini, [
+      mixed("user", [
+        {
+          type: "text",
+          text: "<mini-context>\nUser:\nhi\n\nAssistant:\n[tool: edit]",
+        },
+      ]),
+      mixed("user", [{ type: "text", text: "real question" }]),
+      mixed("assistant", [{ type: "text", text: "real answer" }]),
+    ]);
+    host.prompts = [];
+
+    const result = await sessions.finish("send");
+    expect(result.ok).toBe(true);
+    if (!result.ok) return;
+    expect(result.value.delivered).toBe(true);
+    const text = host.prompts.at(-1)!.input.parts[0].text;
+    expect(text).toContain("real question");
+    expect(text).toContain("real answer");
+    expect(text).not.toContain("<mini-context>");
+    expect(text).not.toContain("[tool:");
+  });
+
   test("done delivers and deletes the mini", async () => {
     const opened = await sessions.open(false);
     if (!opened.ok) throw new Error("open failed");
