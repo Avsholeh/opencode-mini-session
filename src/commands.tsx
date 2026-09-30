@@ -24,6 +24,8 @@ function openOverlay(api: TuiPluginApi, deps: Deps, target: MiniTarget) {
         cfg={deps.config}
         main={target.main}
         mini={target.mini}
+        onSendToMain={() => void finishMini(api, deps, "send")}
+        onSendAndClose={() => void finishMini(api, deps, "done")}
       />
     ),
     () => {},
