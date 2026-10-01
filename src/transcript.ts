@@ -1,4 +1,5 @@
 import type { Message, Part } from "@opencode-ai/sdk/v2";
+import { CONTEXT_PREFIX } from "./markers";
 
 export type Entry = { info: Message; parts: Array<Part> };
 
@@ -36,4 +37,19 @@ export function renderTranscript(
     if (body) blocks.push(`${role}:\n${body}`);
   }
   return blocks.join("\n\n");
+}
+
+export function renderDeliveryTranscript(
+  entries: ReadonlyArray<Entry>,
+  thinking: boolean,
+): string {
+  const textOnly = entries.map((entry) => ({
+    ...entry,
+    parts: (entry.parts ?? []).filter((part) => {
+      if (part.type === "reasoning") return true;
+      if (part.type !== "text") return false;
+      return !part.text.startsWith(CONTEXT_PREFIX);
+    }),
+  }));
+  return renderTranscript(textOnly, thinking);
 }

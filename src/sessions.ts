@@ -1,8 +1,13 @@
 import type { MiniConfig } from "./config";
 import type { HostPort } from "./host";
 import { CONTEXT_PREFIX, isMiniTitle, mainMarker, miniTitle } from "./markers";
+import { MINI_AGENT, MINI_PERMISSION } from "./mini-policy";
 import { describe, fail, ok, type Result } from "./result";
-import { renderTranscript, type Entry } from "./transcript";
+import {
+  renderDeliveryTranscript,
+  renderTranscript,
+  type Entry,
+} from "./transcript";
 
 export type MiniTarget = { main: string; mini: string };
 
@@ -52,7 +57,7 @@ export function createMiniSessions(deps: {
 
   async function transcriptOf(mini: string): Promise<string> {
     const entries: Array<Entry> = await host.messages(mini);
-    return renderTranscript(entries, config.thinking);
+    return renderDeliveryTranscript(entries, config.thinking);
   }
 
   async function findByMarker(): Promise<MiniTarget | undefined> {
@@ -88,10 +93,17 @@ export function createMiniSessions(deps: {
           return fail("No session to attach a mini session to.", "no-target");
 
         if (state.active && host.sessionExists(state.active.mini)) {
+          await host.updateSessionPermission(
+            state.active.mini,
+            MINI_PERMISSION,
+          );
           return ok({ target: state.active });
         }
 
-        const mini = await host.createSession("mini — side chat");
+        const mini = await host.createSession("mini — side chat", {
+          agent: MINI_AGENT,
+          permission: MINI_PERMISSION,
+        });
         const target: MiniTarget = { main, mini };
         await host.renameSession(target.mini, miniTitle(main));
         state.active = target;

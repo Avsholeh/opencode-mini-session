@@ -20,6 +20,7 @@ import type {
 import type { MiniConfig } from "../config";
 import type { HostPort } from "../host";
 import { CONTEXT_PREFIX, shortID } from "../markers";
+import { MINI_AGENT } from "../mini-policy";
 import { describe } from "../result";
 import { toolLine } from "../tool";
 
@@ -303,7 +304,11 @@ async function submitPrompt(
 ) {
   try {
     const inherited = host.lastUserModel(main);
-    await host.prompt(mini, { parts: [{ type: "text", text }], ...inherited });
+    await host.prompt(mini, {
+      parts: [{ type: "text", text }],
+      model: inherited?.model,
+      agent: MINI_AGENT,
+    });
   } catch (error) {
     onError();
     api.ui.toast({

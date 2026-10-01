@@ -1,6 +1,11 @@
 import { describe, expect, test } from "bun:test";
 import type { Message, Part } from "@opencode-ai/sdk/v2";
-import { renderPartText, renderTranscript, type Entry } from "./transcript";
+import {
+  renderDeliveryTranscript,
+  renderPartText,
+  renderTranscript,
+  type Entry,
+} from "./transcript";
 
 const part = (value: Record<string, unknown>): Part => value as unknown as Part;
 
@@ -69,5 +74,75 @@ describe("renderTranscript", () => {
 
   test("returns empty string for no entries", () => {
     expect(renderTranscript([], false)).toBe("");
+  });
+});
+
+describe("renderDeliveryTranscript", () => {
+  test("drops tool, file, agent and subtask parts but keeps text", () => {
+    const text = renderDeliveryTranscript(
+      [
+        entry("user", [part({ type: "text", text: "hi" })]),
+        entry("assistant", [
+          part({ type: "text", text: "done" }),
+          part({ type: "tool", tool: "bash" }),
+          part({ type: "file", filename: "a.ts" }),
+          part({ type: "agent", name: "build" }),
+          part({ type: "subtask", description: "do it" }),
+        ]),
+      ],
+      false,
+    );
+    expect(text).toBe("User:\nhi\n\nAssistant:\ndone");
+    expect(text).not.toContain("[tool:");
+    expect(text).not.toContain("[file:");
+    expect(text).not.toContain("[agent:");
+    expect(text).not.toContain("[subtask:");
+  });
+
+  test("returns empty string when only non-text parts remain", () => {
+    const text = renderDeliveryTranscript(
+      [entry("assistant", [part({ type: "tool", tool: "bash" })])],
+      false,
+    );
+    expect(text).toBe("");
+  });
+
+  test("still respects the thinking flag for reasoning", () => {
+    const entries = [
+      entry("assistant", [part({ type: "reasoning", text: "hmm" })]),
+    ];
+    expect(renderDeliveryTranscript(entries, false)).toBe("");
+    expect(renderDeliveryTranscript(entries, true)).toBe("Assistant:\nhmm");
+  });
+
+  test("drops the injected mini-context block instead of echoing it", () => {
+    const text = renderDeliveryTranscript(
+      [
+        entry("user", [
+          part({
+            type: "text",
+            text: "<mini-context>\nUser:\nhi\n\nAssistant:\n[tool: edit]",
+          }),
+        ]),
+        entry("user", [part({ type: "text", text: "real question" })]),
+        entry("assistant", [part({ type: "text", text: "real answer" })]),
+      ],
+      false,
+    );
+    expect(text).toBe("User:\nreal question\n\nAssistant:\nreal answer");
+    expect(text).not.toContain("<mini-context>");
+    expect(text).not.toContain("[tool:");
+  });
+
+  test("returns empty string when only the context block remains", () => {
+    const text = renderDeliveryTranscript(
+      [
+        entry("user", [
+          part({ type: "text", text: "<mini-context>\nUser:\nhi" }),
+        ]),
+      ],
+      false,
+    );
+    expect(text).toBe("");
   });
 });

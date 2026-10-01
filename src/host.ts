@@ -1,5 +1,6 @@
 import type { TuiPluginApi } from "@opencode-ai/plugin/tui";
 import type { Message, TextPartInput } from "@opencode-ai/sdk/v2";
+import type { MiniPermissionRule } from "./mini-policy";
 import type { Entry } from "./transcript";
 import { unwrap } from "./result";
 
@@ -19,12 +20,24 @@ export type PromptInput = {
   agent?: string;
 };
 
+export type CreateSessionOptions = {
+  agent: string;
+  permission: ReadonlyArray<MiniPermissionRule>;
+};
+
 export type HostPort = {
   currentSessionID(): string | undefined;
   listSessions(): Promise<Array<SessionInfo>>;
   sessionExists(id: string): boolean;
-  createSession(title: string): Promise<string>;
+  createSession(
+    title: string,
+    options: CreateSessionOptions,
+  ): Promise<string>;
   renameSession(id: string, title: string): Promise<void>;
+  updateSessionPermission(
+    id: string,
+    permission: ReadonlyArray<MiniPermissionRule>,
+  ): Promise<void>;
   deleteSession(id: string): Promise<void>;
   messages(id: string): Promise<Array<Entry>>;
   lastUserModel(id: string): { model?: ModelRef; agent?: string } | undefined;
@@ -56,9 +69,13 @@ export function createHost(api: TuiPluginApi): HostPort {
       return api.state.session.get(id) !== undefined;
     },
 
-    async createSession(title) {
+    async createSession(title, options) {
       const created = unwrap(
-        await api.client.session.create({ title }),
+        await api.client.session.create({
+          title,
+          agent: options.agent,
+          permission: [...options.permission],
+        }),
         "create mini session",
       );
       return created.id;
@@ -68,6 +85,16 @@ export function createHost(api: TuiPluginApi): HostPort {
       unwrap(
         await api.client.session.update({ sessionID: id, title }),
         "title mini session",
+      );
+    },
+
+    async updateSessionPermission(id, permission) {
+      unwrap(
+        await api.client.session.update({
+          sessionID: id,
+          permission: [...permission],
+        }),
+        "lock mini session permissions",
       );
     },
 
