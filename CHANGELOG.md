@@ -5,6 +5,15 @@ All notable changes to this project are documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [Unreleased]
+
+### Changed
+
+- Mini sessions are always strict read-only: created as the `plan` agent with
+  `edit:* → deny` and `bash:* → deny`, prompts force `agent: plan` while
+  inheriting only the model from main, and reopening re-enforces the deny
+  rules. Missing `plan` agent fails hard with no writable fallback.
+
 ## [0.1.1] - 2026-09-29
 
 ### Changed

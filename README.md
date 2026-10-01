@@ -48,6 +48,11 @@ reproducibility.
 
 In the overlay, press `enter` to send and `esc` to close.
 
+Mini sessions are always strict read-only: they run as the `plan` agent with
+`edit:* → deny` and `bash:* → deny`. If the `plan` agent is unavailable the
+open fails instead of falling back to a writable agent. Run `/mini-clean` and
+reopen to migrate minis created before this policy.
+
 ## Options
 
 Options are passed as the second element of the `plugin` tuple:

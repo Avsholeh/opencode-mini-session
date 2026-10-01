@@ -1,8 +1,14 @@
 import { beforeEach, describe, expect, test } from "bun:test";
 import type { Message, Part } from "@opencode-ai/sdk/v2";
 import { DEFAULTS, type MiniConfig } from "./config";
-import type { HostPort, PromptInput, SessionInfo } from "./host";
+import type {
+  CreateSessionOptions,
+  HostPort,
+  PromptInput,
+  SessionInfo,
+} from "./host";
 import { CONTEXT_PREFIX, miniTitle } from "./markers";
+import { MINI_AGENT, MINI_PERMISSION } from "./mini-policy";
 import { createMiniSessions, type MiniSessions } from "./sessions";
 import type { Entry } from "./transcript";
 
@@ -12,11 +18,14 @@ class FakeHost implements HostPort {
   sessions: StoredSession[] = [];
   messagesBy = new Map<string, Array<Entry>>();
   prompts: Array<{ id: string; input: PromptInput }> = [];
+  created: Array<{ title: string; options: CreateSessionOptions }> = [];
+  permissionUpdates: Array<{ id: string; permission: unknown }> = [];
   deleted: string[] = [];
   current: string | undefined;
   failMessagesFor = new Set<string>();
   failDeleteFor = new Set<string>();
   failCreate = false;
+  failPermissionUpdateFor = new Set<string>();
   private seq = 0;
 
   currentSessionID() {
@@ -31,8 +40,9 @@ class FakeHost implements HostPort {
     return this.sessions.some((session) => session.id === id);
   }
 
-  async createSession(title: string) {
+  async createSession(title: string, options: CreateSessionOptions) {
     if (this.failCreate) throw new Error("create failed");
+    this.created.push({ title, options });
     const id = `mini-${++this.seq}`;
     this.sessions.unshift({ id, title, created: this.seq });
     return id;
@@ -41,6 +51,12 @@ class FakeHost implements HostPort {
   async renameSession(id: string, title: string) {
     const session = this.sessions.find((item) => item.id === id);
     if (session) session.title = title;
+  }
+
+  async updateSessionPermission(id: string, permission: unknown) {
+    if (this.failPermissionUpdateFor.has(id))
+      throw new Error("permission update failed");
+    this.permissionUpdates.push({ id, permission });
   }
 
   async deleteSession(id: string) {
@@ -171,6 +187,40 @@ describe("open", () => {
     const result = await sessions.open(false);
     expect(result.ok).toBe(false);
     if (!result.ok) expect(result.reason).toBe("failed");
+  });
+
+  test("creates the mini with the plan agent and strict deny rules", async () => {
+    const result = await sessions.open(false);
+    expect(result.ok).toBe(true);
+    expect(host.created).toHaveLength(1);
+    expect(host.created[0].options.agent).toBe(MINI_AGENT);
+    expect(host.created[0].options.agent).toBe("plan");
+    expect(host.created[0].options.permission).toEqual([...MINI_PERMISSION]);
+  });
+
+  test("re-open enforces strict permissions on the reused mini", async () => {
+    const first = await sessions.open(false);
+    expect(first.ok).toBe(true);
+    if (!first.ok) return;
+    host.created = [];
+    const second = await sessions.open(false);
+    expect(second.ok).toBe(true);
+    expect(host.created).toHaveLength(0);
+    expect(host.permissionUpdates).toHaveLength(1);
+    expect(host.permissionUpdates[0].id).toBe(first.value.target.mini);
+    expect(host.permissionUpdates[0].permission).toEqual([
+      ...MINI_PERMISSION,
+    ]);
+  });
+
+  test("re-open fails hard when strict permissions cannot be enforced", async () => {
+    const first = await sessions.open(false);
+    expect(first.ok).toBe(true);
+    if (!first.ok) return;
+    host.failPermissionUpdateFor.add(first.value.target.mini);
+    const second = await sessions.open(false);
+    expect(second.ok).toBe(false);
+    if (!second.ok) expect(second.error).toContain("permission");
   });
 });
 
