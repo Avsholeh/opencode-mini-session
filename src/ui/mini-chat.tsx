@@ -9,8 +9,13 @@ import {
   onCleanup,
   type JSX,
 } from "solid-js";
-import type { TextareaRenderable, KeyBinding } from "@opentui/core";
-import type { TuiPluginApi } from "@opencode-ai/plugin/tui";
+import {
+  SyntaxStyle,
+  type TextareaRenderable,
+  type KeyBinding,
+  type ThemeTokenStyle,
+} from "@opentui/core";
+import type { TuiPluginApi, TuiThemeCurrent } from "@opencode-ai/plugin/tui";
 import type {
   AssistantMessage,
   Message,
@@ -31,6 +36,145 @@ const MINI_KEYBINDINGS: KeyBinding[] = [
   { name: "kpenter", shift: true, action: "newline" },
 ];
 
+const SYNTAX_CACHE = new WeakMap<TuiThemeCurrent, SyntaxStyle>();
+
+function themeSyntax(theme: TuiThemeCurrent): ThemeTokenStyle[] {
+  return [
+    {
+      scope: ["markup.heading"],
+      style: { foreground: theme.markdownHeading, bold: true },
+    },
+    ...[1, 2, 3, 4, 5, 6].map((depth) => ({
+      scope: [`markup.heading.${depth}`],
+      style: {
+        foreground: theme.markdownHeading,
+        bold: true,
+        ...(depth === 1 ? { underline: true } : {}),
+      },
+    })),
+    {
+      scope: ["markup.bold", "markup.strong"],
+      style: { foreground: theme.markdownStrong, bold: true },
+    },
+    {
+      scope: ["markup.italic"],
+      style: { foreground: theme.markdownEmph, italic: true },
+    },
+    { scope: ["markup.list"], style: { foreground: theme.markdownListItem } },
+    {
+      scope: ["markup.quote"],
+      style: { foreground: theme.markdownBlockQuote, italic: true },
+    },
+    {
+      scope: ["markup.raw", "markup.raw.block"],
+      style: { foreground: theme.markdownCode },
+    },
+    {
+      scope: ["markup.raw.inline"],
+      style: { foreground: theme.markdownCode, background: theme.background },
+    },
+    {
+      scope: ["markup.link"],
+      style: { foreground: theme.markdownLink, underline: true },
+    },
+    {
+      scope: ["markup.link.label"],
+      style: { foreground: theme.markdownLinkText, underline: true },
+    },
+    {
+      scope: ["markup.link.url"],
+      style: { foreground: theme.markdownLink, underline: true },
+    },
+    { scope: ["label"], style: { foreground: theme.markdownLinkText } },
+    { scope: ["spell", "nospell"], style: { foreground: theme.text } },
+    { scope: ["default"], style: { foreground: theme.markdownText } },
+    { scope: ["conceal"], style: { foreground: theme.textMuted } },
+    { scope: ["markup.strikethrough"], style: { foreground: theme.textMuted } },
+    {
+      scope: ["markup.underline"],
+      style: { foreground: theme.text, underline: true },
+    },
+    { scope: ["markup.list.checked"], style: { foreground: theme.success } },
+    {
+      scope: ["markup.list.unchecked"],
+      style: { foreground: theme.textMuted },
+    },
+    {
+      scope: ["string.special", "string.special.url"],
+      style: { foreground: theme.markdownLink, underline: true },
+    },
+    {
+      scope: ["comment"],
+      style: { foreground: theme.syntaxComment, italic: true },
+    },
+    { scope: ["keyword"], style: { foreground: theme.syntaxKeyword } },
+    {
+      scope: [
+        "keyword.return",
+        "keyword.conditional",
+        "keyword.repeat",
+        "keyword.coroutine",
+      ],
+      style: { foreground: theme.syntaxKeyword, italic: true },
+    },
+    {
+      scope: ["keyword.type", "type", "type.builtin", "type.definition"],
+      style: { foreground: theme.syntaxType },
+    },
+    {
+      scope: ["keyword.function", "function", "function.method"],
+      style: { foreground: theme.syntaxFunction },
+    },
+    {
+      scope: [
+        "variable",
+        "variable.parameter",
+        "variable.member",
+        "property",
+        "field",
+      ],
+      style: { foreground: theme.syntaxVariable },
+    },
+    {
+      scope: ["string", "character"],
+      style: { foreground: theme.syntaxString },
+    },
+    {
+      scope: ["number", "float", "constant"],
+      style: { foreground: theme.syntaxNumber },
+    },
+    { scope: ["operator"], style: { foreground: theme.syntaxOperator } },
+    {
+      scope: ["punctuation", "punctuation.delimiter", "punctuation.bracket"],
+      style: { foreground: theme.syntaxPunctuation },
+    },
+    {
+      scope: ["diff.plus"],
+      style: { foreground: theme.diffAdded, background: theme.diffAddedBg },
+    },
+    {
+      scope: ["diff.minus"],
+      style: { foreground: theme.diffRemoved, background: theme.diffRemovedBg },
+    },
+    {
+      scope: ["diff.delta"],
+      style: { foreground: theme.diffContext, background: theme.diffContextBg },
+    },
+    { scope: ["error"], style: { foreground: theme.error, bold: true } },
+    { scope: ["warning"], style: { foreground: theme.warning, bold: true } },
+    { scope: ["info"], style: { foreground: theme.info } },
+    { scope: ["debug"], style: { foreground: theme.textMuted } },
+  ];
+}
+
+function buildSyntaxStyle(theme: TuiThemeCurrent): SyntaxStyle {
+  const cached = SYNTAX_CACHE.get(theme);
+  if (cached) return cached;
+  const style = SyntaxStyle.fromTheme(themeSyntax(theme));
+  SYNTAX_CACHE.set(theme, style);
+  return style;
+}
+
 export function MiniChat(props: {
   api: TuiPluginApi;
   host: HostPort;
@@ -42,6 +186,7 @@ export function MiniChat(props: {
 }): JSX.Element {
   const dim = useTerminalDimensions();
   const theme = () => props.api.theme.current;
+  const syntaxStyle = createMemo(() => buildSyntaxStyle(theme()));
   const messages = () => props.api.state.session.messages(props.mini);
   const status = () => props.api.state.session.status(props.mini);
   const busy = () => status()?.type === "busy";
@@ -157,6 +302,7 @@ export function MiniChat(props: {
                 api={props.api}
                 message={message}
                 thinking={props.cfg.thinking}
+                syntaxStyle={syntaxStyle()}
               />
             )}
           </For>
@@ -221,6 +367,7 @@ function Turn(props: {
   api: TuiPluginApi;
   message: Message;
   thinking: boolean;
+  syntaxStyle: SyntaxStyle;
 }): JSX.Element {
   const theme = () => props.api.theme.current;
   const isUser = () => props.message.role === "user";
@@ -243,7 +390,12 @@ function Turn(props: {
       </text>
       <For each={props.api.state.part(props.message.id)}>
         {(part) => (
-          <PartView api={props.api} part={part} thinking={props.thinking} />
+          <PartView
+            api={props.api}
+            part={part}
+            thinking={props.thinking}
+            syntaxStyle={props.syntaxStyle}
+          />
         )}
       </For>
       <Show when={error()}>
@@ -257,6 +409,7 @@ function PartView(props: {
   api: TuiPluginApi;
   part: Part;
   thinking: boolean;
+  syntaxStyle: SyntaxStyle;
 }): JSX.Element {
   const theme = () => props.api.theme.current;
   const part = props.part;
@@ -268,7 +421,16 @@ function PartView(props: {
           main
         </text>
       );
-    return <text fg={theme().text}>{part.text}</text>;
+    return (
+      <box width="100%">
+        <markdown
+          content={part.text}
+          syntaxStyle={props.syntaxStyle}
+          fg={theme().text}
+          width="100%"
+        />
+      </box>
+    );
   }
   if (part.type === "reasoning") {
     if (!props.thinking) return null;
