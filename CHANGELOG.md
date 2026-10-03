@@ -7,8 +7,20 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+
+- `model` option and `/mini-model` picker to choose the model used for
+  mini-session questions (defaults to inheriting the main session model).
+- `tokenLimit` option (default `50000`) that caps copied main-session context by
+  estimated tokens, dropping the oldest turns first. This replaces
+  `contextTurns`.
+- Tool calls in copied context now include up to four summarized input params
+  (for example `[tool: read filePath=src/foo.ts]`).
+
 ### Changed
 
+- `/mini-send` and `/mini-done` now deliver only turns added since the previous
+  send instead of re-sending the whole transcript.
 - Mini sessions are always strict read-only: created as the `plan` agent with
   `edit:* → deny` and `bash:* → deny`, prompts force `agent: plan` while
   inheriting only the model from main, and reopening re-enforces the deny

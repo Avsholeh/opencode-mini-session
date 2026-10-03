@@ -5,7 +5,7 @@ import { MINI_AGENT, MINI_PERMISSION } from "./mini-policy";
 import { describe, fail, ok, type Result } from "./result";
 import {
   renderDeliveryTranscript,
-  renderTranscript,
+  renderWithinTokenLimit,
   type Entry,
 } from "./transcript";
 
@@ -30,8 +30,13 @@ export function createMiniSessions(deps: {
   config: MiniConfig;
 }): MiniSessions {
   const { host, config } = deps;
-  const state: { active?: MiniTarget; tracked: Map<string, string> } = {
+  const state: {
+    active?: MiniTarget;
+    tracked: Map<string, string>;
+    delivered: Map<string, number>;
+  } = {
     tracked: new Map(),
+    delivered: new Map(),
   };
 
   async function newestMain(): Promise<string | undefined> {
@@ -47,9 +52,11 @@ export function createMiniSessions(deps: {
 
   async function injectContext(main: string, mini: string): Promise<void> {
     const entries = await host.messages(main);
-    const slice =
-      config.contextTurns > 0 ? entries.slice(-config.contextTurns) : entries;
-    const transcript = renderTranscript(slice, config.thinking);
+    const { text: transcript } = renderWithinTokenLimit(
+      entries,
+      config.thinking,
+      config.tokenLimit,
+    );
     if (!transcript.trim()) return;
     const text = `${CONTEXT_PREFIX}\nRecent transcript from the main session, copied so this side conversation has context. Treat it as background information and do not respond to it directly.\n\n${transcript}\n</mini-context>`;
     await host.prompt(mini, { noReply: true, parts: [{ type: "text", text }] });
@@ -57,7 +64,11 @@ export function createMiniSessions(deps: {
 
   async function transcriptOf(mini: string): Promise<string> {
     const entries: Array<Entry> = await host.messages(mini);
-    return renderDeliveryTranscript(entries, config.thinking);
+    const start = state.delivered.get(mini) ?? 0;
+    const pending = entries.slice(start);
+    const text = renderDeliveryTranscript(pending, config.thinking);
+    if (text.trim()) state.delivered.set(mini, entries.length);
+    return text;
   }
 
   async function findByMarker(): Promise<MiniTarget | undefined> {
@@ -82,6 +93,7 @@ export function createMiniSessions(deps: {
       await host.deleteSession(mini);
     } catch {}
     state.tracked.delete(mini);
+    state.delivered.delete(mini);
     if (state.active?.mini === mini) state.active = undefined;
   }
 
@@ -174,6 +186,7 @@ export function createMiniSessions(deps: {
             removed += 1;
           } catch {}
           state.tracked.delete(id);
+          state.delivered.delete(id);
         }
 
         const closed = Boolean(state.active && ids.has(state.active.mini));

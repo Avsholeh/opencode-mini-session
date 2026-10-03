@@ -1,11 +1,21 @@
 /** @jsxImportSource @opentui/solid */
-import type { TuiPluginApi } from "@opencode-ai/plugin/tui";
+import type {
+  TuiDialogSelectOption,
+  TuiPluginApi,
+} from "@opencode-ai/plugin/tui";
+import type { Provider } from "@opencode-ai/sdk/v2";
 import type { MiniConfig } from "./config";
 import type { HostPort } from "./host";
+import { formatModelRef, parseModelOverride, type ModelRef } from "./model";
 import type { FinishMode, MiniSessions, MiniTarget } from "./sessions";
 import { MiniChat } from "./ui/mini-chat";
 
-type Deps = { sessions: MiniSessions; host: HostPort; config: MiniConfig };
+type Deps = {
+  sessions: MiniSessions;
+  host: HostPort;
+  config: MiniConfig;
+  model?: () => ModelRef | undefined;
+};
 
 function toast(
   api: TuiPluginApi,
@@ -24,6 +34,7 @@ function openOverlay(api: TuiPluginApi, deps: Deps, target: MiniTarget) {
         cfg={deps.config}
         main={target.main}
         mini={target.mini}
+        modelOverride={deps.model}
         onSendToMain={() => void finishMini(api, deps, "send")}
         onSendAndClose={() => void finishMini(api, deps, "done")}
       />
@@ -97,9 +108,76 @@ async function cleanMinis(api: TuiPluginApi, deps: Deps) {
   if (closed) api.ui.dialog.clear();
 }
 
+function buildModelOptions(
+  providers: ReadonlyArray<Provider>,
+): TuiDialogSelectOption<string>[] {
+  const options: TuiDialogSelectOption<string>[] = [
+    {
+      title: "default (main session model)",
+      value: "default",
+      description: "Inherit the model from the main session",
+      category: "Default",
+    },
+  ];
+  const sorted = [...providers].sort((left, right) =>
+    left.name.localeCompare(right.name),
+  );
+  for (const provider of sorted) {
+    const models = Object.values(provider.models).sort((left, right) =>
+      left.name.localeCompare(right.name),
+    );
+    for (const model of models) {
+      options.push({
+        title: model.name || model.id,
+        value: `${provider.id}/${model.id}`,
+        description: `${provider.id}/${model.id}`,
+        category: provider.name,
+      });
+    }
+  }
+  return options;
+}
+
 export function registerCommands(api: TuiPluginApi, deps: Deps) {
+  let selectedModel: ModelRef | undefined;
+  deps.model = () => selectedModel;
+
+  const openModelPicker = () => {
+    api.ui.dialog.setSize("large");
+    api.ui.dialog.replace(() =>
+      api.ui.DialogSelect<string>({
+        title: "mini model",
+        placeholder: "Select the model for mini-session questions",
+        current: selectedModel ? formatModelRef(selectedModel) : "default",
+        options: buildModelOptions(api.state.provider),
+        onSelect: (option) => {
+          selectedModel =
+            option.value === "default"
+              ? undefined
+              : parseModelOverride(option.value);
+          api.ui.toast({
+            variant: "success",
+            message: `mini model set to ${formatModelRef(selectedModel)}.`,
+          });
+          api.ui.dialog.clear();
+        },
+      }),
+    );
+  };
+
   api.keymap.registerLayer({
     commands: [
+      {
+        name: "mini.model",
+        title: "Mini: change model",
+        desc: "Choose the model used for mini-session questions",
+        category: "Plugin",
+        namespace: "palette",
+        slashName: "mini-model",
+        run() {
+          openModelPicker();
+        },
+      },
       {
         name: "mini.open",
         title: "Mini: open overlay",

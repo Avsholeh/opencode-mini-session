@@ -6,11 +6,11 @@ describe("parseConfig", () => {
     expect(parseConfig(undefined)).toEqual(DEFAULTS);
   });
 
-  test("reads contextTurns, thinking and size", () => {
+  test("reads tokenLimit, thinking and size", () => {
     expect(
-      parseConfig({ contextTurns: 3, thinking: true, size: "xlarge" }),
+      parseConfig({ tokenLimit: 12000, thinking: true, size: "xlarge" }),
     ).toEqual({
-      contextTurns: 3,
+      tokenLimit: 12000,
       thinking: true,
       size: "xlarge",
       openKey: DEFAULTS.openKey,
@@ -27,10 +27,30 @@ describe("parseConfig", () => {
     expect(parseConfig({ size: "huge" }).size).toBe(DEFAULTS.size);
   });
 
-  test("ignores non-number contextTurns", () => {
-    expect(parseConfig({ contextTurns: "9" }).contextTurns).toBe(
-      DEFAULTS.contextTurns,
+  test("ignores non-positive or non-number tokenLimit", () => {
+    expect(parseConfig({ tokenLimit: "9" }).tokenLimit).toBe(
+      DEFAULTS.tokenLimit,
     );
+    expect(parseConfig({ tokenLimit: 0 }).tokenLimit).toBe(DEFAULTS.tokenLimit);
+    expect(parseConfig({ tokenLimit: -5 }).tokenLimit).toBe(
+      DEFAULTS.tokenLimit,
+    );
+  });
+
+  test("parses a provider/model override", () => {
+    expect(parseConfig({ model: "anthropic/claude-sonnet-4.6" }).model).toEqual(
+      {
+        providerID: "anthropic",
+        modelID: "claude-sonnet-4.6",
+      },
+    );
+  });
+
+  test("falls back when model is missing or malformed", () => {
+    expect(parseConfig(undefined).model).toBeUndefined();
+    expect(parseConfig({ model: "no-slash" }).model).toBeUndefined();
+    expect(parseConfig({ model: "   " }).model).toBeUndefined();
+    expect(parseConfig({ model: 42 }).model).toBeUndefined();
   });
 
   test("only true enables thinking", () => {
