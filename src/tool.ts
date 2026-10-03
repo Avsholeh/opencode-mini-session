@@ -69,8 +69,27 @@ export function toolLabel(tool: string, state: ToolState): string | undefined {
   return deriveLabel(tool, state.input ?? {});
 }
 
+function invalidLabel(state: ToolState): string | undefined {
+  const input = state.input ?? {};
+  const error = primitive(input, "error");
+  if (error) return normalize(error);
+  const tool = primitive(input, "tool");
+  if (tool) return normalize(tool);
+  if (
+    (state.status === "running" || state.status === "completed") &&
+    state.title
+  )
+    return normalize(state.title);
+  return undefined;
+}
+
 export function toolLine(part: ToolPart): { text: string; error: boolean } {
   const state = part.state;
+  if (part.tool === "invalid") {
+    const label = invalidLabel(state);
+    const suffix = label ? ` · ${label}` : "";
+    return { text: `✕ invalid${suffix}`, error: true };
+  }
   const label = toolLabel(part.tool, state);
   const suffix = label ? ` · ${label}` : "";
   switch (state.status) {
