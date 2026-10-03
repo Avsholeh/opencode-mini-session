@@ -109,4 +109,35 @@ describe("toolLine", () => {
       error: true,
     });
   });
+
+  test("invalid completed surfaces the real error", () => {
+    expect(
+      toolLine(
+        part(
+          "invalid",
+          completed({
+            tool: "read",
+            error: "The read tool was called with invalid arguments",
+          }),
+        ),
+      ),
+    ).toEqual({
+      text: "✕ invalid · The read tool was called with invalid arguments",
+      error: true,
+    });
+  });
+
+  test("invalid falls back to the target tool name", () => {
+    expect(toolLine(part("invalid", completed({ tool: "read" })))).toEqual({
+      text: "✕ invalid · read",
+      error: true,
+    });
+  });
+
+  test("invalid without input still flags an error", () => {
+    expect(toolLine(part("invalid", completed()))).toEqual({
+      text: "✕ invalid",
+      error: true,
+    });
+  });
 });
