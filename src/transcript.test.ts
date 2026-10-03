@@ -1,9 +1,11 @@
 import { describe, expect, test } from "bun:test";
 import type { Message, Part } from "@opencode-ai/sdk/v2";
 import {
+  estimateTokens,
   renderDeliveryTranscript,
   renderPartText,
   renderTranscript,
+  renderWithinTokenLimit,
   type Entry,
 } from "./transcript";
 
@@ -46,6 +48,31 @@ describe("renderPartText", () => {
     expect(
       renderPartText(part({ type: "file", url: "https://x" }), false),
     ).toBe("[file: https://x]");
+  });
+
+  test("summarizes tool inputs in copied context", () => {
+    const tool = part({
+      type: "tool",
+      tool: "read",
+      state: { status: "completed", input: { filePath: "src/foo.ts" } },
+    });
+    expect(renderPartText(tool, false)).toBe(
+      "[tool: read filePath=src/foo.ts]",
+    );
+  });
+
+  test("caps tool input summaries at four keys and flattens values", () => {
+    const tool = part({
+      type: "tool",
+      tool: "bash",
+      state: {
+        status: "running",
+        input: { a: "one", b: 2, c: true, d: ["x", "y"], e: "ignored" },
+      },
+    });
+    expect(renderPartText(tool, false)).toBe(
+      "[tool: bash a=one b=2 c=true d=[2]]",
+    );
   });
 });
 
@@ -144,5 +171,43 @@ describe("renderDeliveryTranscript", () => {
       false,
     );
     expect(text).toBe("");
+  });
+});
+
+describe("estimateTokens", () => {
+  test("approximates from character length", () => {
+    expect(estimateTokens("")).toBe(0);
+    expect(estimateTokens("abcd")).toBe(2);
+  });
+});
+
+describe("renderWithinTokenLimit", () => {
+  const entries = [
+    entry("user", [part({ type: "text", text: "one" })]),
+    entry("assistant", [part({ type: "text", text: "two" })]),
+    entry("user", [part({ type: "text", text: "three" })]),
+  ];
+
+  test("keeps everything when the limit is large", () => {
+    const result = renderWithinTokenLimit(entries, false, 50000);
+    expect(result.text).toBe("User:\none\n\nAssistant:\ntwo\n\nUser:\nthree");
+    expect(result.dropped).toBe(0);
+  });
+
+  test("drops the oldest entries that do not fit", () => {
+    const result = renderWithinTokenLimit(entries, false, 4);
+    expect(result.text).toBe("User:\nthree");
+    expect(result.usedTokens).toBeGreaterThan(0);
+    expect(result.dropped).toBeGreaterThan(0);
+  });
+
+  test("always keeps at least the newest entry", () => {
+    const result = renderWithinTokenLimit(entries, false, 1);
+    expect(result.text).toBe("User:\nthree");
+  });
+
+  test("returns empty text when there is nothing to render", () => {
+    const result = renderWithinTokenLimit([], false, 100);
+    expect(result).toEqual({ text: "", usedTokens: 0, dropped: 0 });
   });
 });

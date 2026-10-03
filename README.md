@@ -33,13 +33,16 @@ reproducibility.
 
 ## Usage
 
-- **`<leader>i`** or **`/mini`** — open a mini session and copy the last few
-  turns of context from the current main session.
+- **`<leader>i`** or **`/mini`** — open a mini session and copy recent context
+  from the current main session (token-limited).
 - **`<leader>o`** or **`/mini-fresh`** — open a mini session without copying
   context.
+- **`/mini-model`** — choose the model used for mini-session questions, or reset
+  it to inherit the main session model.
 - **`/mini-send`** — copy the mini transcript into the main session and keep the
   mini session open. Only human-readable text is sent; tool, file, agent, and
-  subtask activity is omitted to keep main-session context lean.
+  subtask activity is omitted to keep main-session context lean. Repeated sends
+  only deliver turns added since the previous send.
 - **`/mini-done`** — copy the transcript into the main session, then close the
   mini session. Same text-only delivery as `/mini-send`.
 - **`/mini-close`** — close the mini session without sending anything.
@@ -64,7 +67,8 @@ Options are passed as the second element of the `plugin` tuple:
     [
       "@avsholeh/opencode-mini-session",
       {
-        "contextTurns": 8,
+        "tokenLimit": 50000,
+        "model": "anthropic/claude-sonnet-4.6",
         "thinking": false,
         "size": "large",
         "keybinds": {
@@ -78,12 +82,16 @@ Options are passed as the second element of the `plugin` tuple:
 }
 ```
 
-| Option         | Type                                                  | Default        | Description                                                                        |
-| -------------- | ----------------------------------------------------- | -------------- | ---------------------------------------------------------------------------------- |
-| `contextTurns` | `number`                                              | `8`            | How many recent main-session turns to copy. `0` copies everything.                 |
-| `thinking`     | `boolean`                                             | `false`        | Show reasoning/thinking parts.                                                     |
-| `size`         | `"medium" \| "large" \| "xlarge"`                     | `"large"`      | Overlay size.                                                                      |
-| `keybinds`     | `{ "mini.open"?: string; "mini.fresh"?: string; "mini.clean"?: string }` | see below | Keybinds used to open the overlay with (`<leader>i`) or without (`<leader>o`) context, and to clean all mini sessions (`<leader>d`). |
+| Option       | Type                                                                     | Default   | Description                                                                                                                          |
+| ------------ | ------------------------------------------------------------------------ | --------- | ------------------------------------------------------------------------------------------------------------------------------------ |
+| `tokenLimit` | `number`                                                                 | `50000`   | Maximum tokens of main-session context to copy. Oldest turns are dropped to fit.                                                     |
+| `model`      | `string`                                                                 | inherit   | Model for mini-session questions as `providerID/modelID`. Omit to inherit the main session model.                                    |
+| `thinking`   | `boolean`                                                                | `false`   | Show reasoning/thinking parts.                                                                                                       |
+| `size`       | `"medium" \| "large" \| "xlarge"`                                        | `"large"` | Overlay size.                                                                                                                        |
+| `keybinds`   | `{ "mini.open"?: string; "mini.fresh"?: string; "mini.clean"?: string }` | see below | Keybinds used to open the overlay with (`<leader>i`) or without (`<leader>o`) context, and to clean all mini sessions (`<leader>d`). |
+
+`model` and `keybinds` can also be changed at runtime with `/mini-model` and the
+command palette.
 
 `<leader>` resolves to the leader key configured in `tui.json` (default
 `ctrl+x`).

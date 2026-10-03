@@ -119,13 +119,13 @@ describe("open", () => {
     expect(host.prompts).toHaveLength(0);
   });
 
-  test("copies only the last contextTurns turns", async () => {
+  test("copies only what fits under the token limit", async () => {
     host.messagesBy.set("main1", [
       entry("user", "one"),
       entry("assistant", "two"),
       entry("user", "three"),
     ]);
-    sessions = mkSessions({ contextTurns: 2 });
+    sessions = mkSessions({ tokenLimit: 4 });
     const result = await sessions.open(true);
     expect(result.ok).toBe(true);
     if (!result.ok) return;
@@ -134,17 +134,17 @@ describe("open", () => {
     expect(host.prompts[0].id).toBe(result.value.target.mini);
     expect(host.prompts[0].input.noReply).toBe(true);
     expect(text.startsWith(CONTEXT_PREFIX)).toBe(true);
-    expect(text).toContain("Assistant:\ntwo");
     expect(text).toContain("User:\nthree");
+    expect(text).not.toContain("Assistant:\ntwo");
     expect(text).not.toContain("User:\none");
   });
 
-  test("contextTurns 0 copies everything", async () => {
+  test("a large token limit copies everything", async () => {
     host.messagesBy.set("main1", [
       entry("user", "one"),
       entry("assistant", "two"),
     ]);
-    sessions = mkSessions({ contextTurns: 0 });
+    sessions = mkSessions({ tokenLimit: 50000 });
     await sessions.open(true);
     const text = host.prompts[0].input.parts[0].text;
     expect(text).toContain("User:\none");
@@ -208,9 +208,7 @@ describe("open", () => {
     expect(host.created).toHaveLength(0);
     expect(host.permissionUpdates).toHaveLength(1);
     expect(host.permissionUpdates[0].id).toBe(first.value.target.mini);
-    expect(host.permissionUpdates[0].permission).toEqual([
-      ...MINI_PERMISSION,
-    ]);
+    expect(host.permissionUpdates[0].permission).toEqual([...MINI_PERMISSION]);
   });
 
   test("re-open fails hard when strict permissions cannot be enforced", async () => {
@@ -242,6 +240,45 @@ describe("finish", () => {
     expect(last.input.parts[0].text).toContain("Mini-session transcript:");
     expect(host.sessionExists(mini)).toBe(true);
     expect(host.deleted).not.toContain(mini);
+  });
+
+  test("second send only delivers turns added since the last send", async () => {
+    const opened = await sessions.open(false);
+    if (!opened.ok) throw new Error("open failed");
+    const mini = opened.value.target.mini;
+    host.messagesBy.set(mini, [entry("user", "hi"), entry("assistant", "yo")]);
+    host.prompts = [];
+
+    await sessions.finish("send");
+    expect(host.prompts).toHaveLength(1);
+
+    host.messagesBy.set(mini, [
+      ...host.messagesBy.get(mini)!,
+      entry("user", "again"),
+    ]);
+    const result = await sessions.finish("send");
+    expect(result.ok).toBe(true);
+    if (!result.ok) return;
+    expect(result.value).toEqual({ delivered: true, closed: false });
+    expect(host.prompts).toHaveLength(2);
+    const text = host.prompts.at(-1)!.input.parts[0].text;
+    expect(text).toContain("User:\nagain");
+    expect(text).not.toContain("User:\nhi");
+  });
+
+  test("send with no new turns reports nothing delivered", async () => {
+    const opened = await sessions.open(false);
+    if (!opened.ok) throw new Error("open failed");
+    const mini = opened.value.target.mini;
+    host.messagesBy.set(mini, [entry("user", "hi")]);
+    host.prompts = [];
+
+    await sessions.finish("send");
+    const result = await sessions.finish("send");
+    expect(result.ok).toBe(true);
+    if (!result.ok) return;
+    expect(result.value).toEqual({ delivered: false, closed: false });
+    expect(host.prompts).toHaveLength(1);
   });
 
   test("send strips tool, file, agent and subtask parts", async () => {

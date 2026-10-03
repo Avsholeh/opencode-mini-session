@@ -1,7 +1,10 @@
+import { parseModelOverride, type ModelRef } from "./model";
+
 export type MiniSize = "medium" | "large" | "xlarge";
 
 export type MiniConfig = {
-  contextTurns: number;
+  tokenLimit: number;
+  model?: ModelRef;
   thinking: boolean;
   size: MiniSize;
   openKey: string;
@@ -10,7 +13,7 @@ export type MiniConfig = {
 };
 
 export const DEFAULTS: MiniConfig = {
-  contextTurns: 8,
+  tokenLimit: 50000,
   thinking: false,
   size: "large",
   openKey: "<leader>i",
@@ -30,11 +33,15 @@ export function parseConfig(
   const fresh = isRecord(keybinds) ? keybinds["mini.fresh"] : undefined;
   const clean = isRecord(keybinds) ? keybinds["mini.clean"] : undefined;
   const size = options?.size;
+  const tokenLimit = options?.tokenLimit;
   return {
-    contextTurns:
-      typeof options?.contextTurns === "number"
-        ? options.contextTurns
-        : DEFAULTS.contextTurns,
+    tokenLimit:
+      typeof tokenLimit === "number" &&
+      Number.isFinite(tokenLimit) &&
+      tokenLimit > 0
+        ? tokenLimit
+        : DEFAULTS.tokenLimit,
+    model: parseModelOverride(options?.model),
     thinking: options?.thinking === true,
     size: size === "medium" || size === "xlarge" ? size : DEFAULTS.size,
     openKey: typeof open === "string" && open.trim() ? open : DEFAULTS.openKey,

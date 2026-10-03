@@ -25,6 +25,7 @@ import type {
 import type { MiniConfig } from "../config";
 import type { HostPort } from "../host";
 import { CONTEXT_PREFIX, shortID } from "../markers";
+import { resolvePromptModel, type ModelRef } from "../model";
 import { MINI_AGENT } from "../mini-policy";
 import { describe } from "../result";
 import { toolLine } from "../tool";
@@ -181,6 +182,7 @@ export function MiniChat(props: {
   cfg: MiniConfig;
   main: string;
   mini: string;
+  modelOverride?: () => ModelRef | undefined;
   onSendToMain: () => void;
   onSendAndClose: () => void;
 }): JSX.Element {
@@ -238,9 +240,11 @@ export function MiniChat(props: {
     void submitPrompt(
       props.host,
       props.api,
+      props.cfg,
       props.main,
       props.mini,
       text,
+      props.modelOverride,
       () => {
         if (!node.plainText.trim()) node.setText(text);
       },
@@ -459,16 +463,19 @@ function ToolView(props: { api: TuiPluginApi; part: ToolPart }): JSX.Element {
 async function submitPrompt(
   host: HostPort,
   api: TuiPluginApi,
+  cfg: MiniConfig,
   main: string,
   mini: string,
   text: string,
+  modelOverride: (() => ModelRef | undefined) | undefined,
   onError: () => void,
 ) {
   try {
     const inherited = host.lastUserModel(main);
+    const model = resolvePromptModel(cfg, modelOverride?.(), inherited?.model);
     await host.prompt(mini, {
       parts: [{ type: "text", text }],
-      model: inherited?.model,
+      model,
       agent: MINI_AGENT,
     });
   } catch (error) {
