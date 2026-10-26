@@ -1,7 +1,29 @@
-import type { Message, Part } from "@opencode-ai/sdk/v2";
 import { CONTEXT_PREFIX } from "./markers";
 
-export type Entry = { info: Message; parts: Array<Part> };
+export type Part =
+  | { type: "text"; text: string }
+  | { type: "reasoning"; text: string }
+  | {
+      type: "tool";
+      name?: string;
+      tool?: string;
+      state?: {
+        status?: string;
+        input?: Record<string, unknown>;
+        title?: string;
+      };
+    }
+  | { type: "file"; filename?: string; url?: string }
+  | { type: "agent"; name: string }
+  | { type: "subtask"; description: string };
+
+export type EntryInfo = {
+  role?: string;
+  type?: string;
+  [key: string]: unknown;
+};
+
+export type Entry = { info: EntryInfo; parts: Array<Part> };
 
 const MAX_SUMMARY = 48;
 
@@ -34,8 +56,9 @@ export function renderPartText(part: Part, thinking: boolean): string {
     case "reasoning":
       return thinking ? part.text : "";
     case "tool": {
+      const toolName = part.tool ?? part.name ?? "tool";
       const inputs = formatToolInputs(part.state?.input ?? {});
-      return inputs ? `[tool: ${part.tool} ${inputs}]` : `[tool: ${part.tool}]`;
+      return inputs ? `[tool: ${toolName} ${inputs}]` : `[tool: ${toolName}]`;
     }
     case "file":
       return `[file: ${part.filename ?? part.url}]`;
@@ -49,7 +72,11 @@ export function renderPartText(part: Part, thinking: boolean): string {
 }
 
 function renderEntry(entry: Entry, thinking: boolean): string {
-  const role = entry.info.role === "user" ? "User" : "Assistant";
+  const isUser =
+    entry.info.role === "user" ||
+    entry.info.type === "user" ||
+    entry.info.type === "synthetic";
+  const role = isUser ? "User" : "Assistant";
   const body = (entry.parts ?? [])
     .map((part) => renderPartText(part, thinking))
     .filter((value) => value && value.trim().length > 0)
@@ -99,11 +126,8 @@ export function renderWithinTokenLimit(
     }
   }
 
-  return {
-    text: selected.reverse().join("\n\n"),
-    usedTokens,
-    dropped,
-  };
+  selected.reverse();
+  return { text: selected.join("\n\n"), usedTokens, dropped };
 }
 
 export function renderDeliveryTranscript(

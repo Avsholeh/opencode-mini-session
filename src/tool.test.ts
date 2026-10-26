@@ -1,6 +1,5 @@
 import { describe, expect, test } from "bun:test";
-import type { ToolPart, ToolState } from "@opencode-ai/sdk/v2";
-import { toolLabel, toolLine } from "./tool";
+import { toolLabel, toolLine, type ToolPart, type ToolState } from "./tool";
 
 const pending = (input: Record<string, unknown> = {}): ToolState =>
   ({ status: "pending", input, raw: "" }) as unknown as ToolState;

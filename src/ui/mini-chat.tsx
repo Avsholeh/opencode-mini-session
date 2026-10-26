@@ -7,28 +7,25 @@ import {
   createMemo,
   createSignal,
   onCleanup,
+  onMount,
   type JSX,
 } from "solid-js";
 import {
-  SyntaxStyle,
   type TextareaRenderable,
   type KeyBinding,
-  type ThemeTokenStyle,
+  type SyntaxStyle,
 } from "@opentui/core";
-import type { TuiPluginApi, TuiThemeCurrent } from "@opencode-ai/plugin/tui";
-import type {
-  AssistantMessage,
-  Message,
-  Part,
-  ToolPart,
-} from "@opencode-ai/sdk/v2";
+import { generateSyntax } from "@opencode/theme/tui";
+import type { Context } from "@opencode/plugin/tui/context";
+import type { SessionMessageInfo } from "@opencode/client";
 import type { MiniConfig } from "../config";
 import type { HostPort } from "../host";
 import { CONTEXT_PREFIX, shortID } from "../markers";
 import { resolvePromptModel, type ModelRef } from "../model";
 import { MINI_AGENT } from "../mini-policy";
 import { describe } from "../result";
-import { toolLine } from "../tool";
+import { toolLine, type ToolPart } from "../tool";
+import type { Part } from "../transcript";
 
 const MINI_KEYBINDINGS: KeyBinding[] = [
   { name: "return", action: "submit" },
@@ -37,147 +34,8 @@ const MINI_KEYBINDINGS: KeyBinding[] = [
   { name: "kpenter", shift: true, action: "newline" },
 ];
 
-const SYNTAX_CACHE = new WeakMap<TuiThemeCurrent, SyntaxStyle>();
-
-function themeSyntax(theme: TuiThemeCurrent): ThemeTokenStyle[] {
-  return [
-    {
-      scope: ["markup.heading"],
-      style: { foreground: theme.markdownHeading, bold: true },
-    },
-    ...[1, 2, 3, 4, 5, 6].map((depth) => ({
-      scope: [`markup.heading.${depth}`],
-      style: {
-        foreground: theme.markdownHeading,
-        bold: true,
-        ...(depth === 1 ? { underline: true } : {}),
-      },
-    })),
-    {
-      scope: ["markup.bold", "markup.strong"],
-      style: { foreground: theme.markdownStrong, bold: true },
-    },
-    {
-      scope: ["markup.italic"],
-      style: { foreground: theme.markdownEmph, italic: true },
-    },
-    { scope: ["markup.list"], style: { foreground: theme.markdownListItem } },
-    {
-      scope: ["markup.quote"],
-      style: { foreground: theme.markdownBlockQuote, italic: true },
-    },
-    {
-      scope: ["markup.raw", "markup.raw.block"],
-      style: { foreground: theme.markdownCode },
-    },
-    {
-      scope: ["markup.raw.inline"],
-      style: { foreground: theme.markdownCode, background: theme.background },
-    },
-    {
-      scope: ["markup.link"],
-      style: { foreground: theme.markdownLink, underline: true },
-    },
-    {
-      scope: ["markup.link.label"],
-      style: { foreground: theme.markdownLinkText, underline: true },
-    },
-    {
-      scope: ["markup.link.url"],
-      style: { foreground: theme.markdownLink, underline: true },
-    },
-    { scope: ["label"], style: { foreground: theme.markdownLinkText } },
-    { scope: ["spell", "nospell"], style: { foreground: theme.text } },
-    { scope: ["default"], style: { foreground: theme.markdownText } },
-    { scope: ["conceal"], style: { foreground: theme.textMuted } },
-    { scope: ["markup.strikethrough"], style: { foreground: theme.textMuted } },
-    {
-      scope: ["markup.underline"],
-      style: { foreground: theme.text, underline: true },
-    },
-    { scope: ["markup.list.checked"], style: { foreground: theme.success } },
-    {
-      scope: ["markup.list.unchecked"],
-      style: { foreground: theme.textMuted },
-    },
-    {
-      scope: ["string.special", "string.special.url"],
-      style: { foreground: theme.markdownLink, underline: true },
-    },
-    {
-      scope: ["comment"],
-      style: { foreground: theme.syntaxComment, italic: true },
-    },
-    { scope: ["keyword"], style: { foreground: theme.syntaxKeyword } },
-    {
-      scope: [
-        "keyword.return",
-        "keyword.conditional",
-        "keyword.repeat",
-        "keyword.coroutine",
-      ],
-      style: { foreground: theme.syntaxKeyword, italic: true },
-    },
-    {
-      scope: ["keyword.type", "type", "type.builtin", "type.definition"],
-      style: { foreground: theme.syntaxType },
-    },
-    {
-      scope: ["keyword.function", "function", "function.method"],
-      style: { foreground: theme.syntaxFunction },
-    },
-    {
-      scope: [
-        "variable",
-        "variable.parameter",
-        "variable.member",
-        "property",
-        "field",
-      ],
-      style: { foreground: theme.syntaxVariable },
-    },
-    {
-      scope: ["string", "character"],
-      style: { foreground: theme.syntaxString },
-    },
-    {
-      scope: ["number", "float", "constant"],
-      style: { foreground: theme.syntaxNumber },
-    },
-    { scope: ["operator"], style: { foreground: theme.syntaxOperator } },
-    {
-      scope: ["punctuation", "punctuation.delimiter", "punctuation.bracket"],
-      style: { foreground: theme.syntaxPunctuation },
-    },
-    {
-      scope: ["diff.plus"],
-      style: { foreground: theme.diffAdded, background: theme.diffAddedBg },
-    },
-    {
-      scope: ["diff.minus"],
-      style: { foreground: theme.diffRemoved, background: theme.diffRemovedBg },
-    },
-    {
-      scope: ["diff.delta"],
-      style: { foreground: theme.diffContext, background: theme.diffContextBg },
-    },
-    { scope: ["error"], style: { foreground: theme.error, bold: true } },
-    { scope: ["warning"], style: { foreground: theme.warning, bold: true } },
-    { scope: ["info"], style: { foreground: theme.info } },
-    { scope: ["debug"], style: { foreground: theme.textMuted } },
-  ];
-}
-
-function buildSyntaxStyle(theme: TuiThemeCurrent): SyntaxStyle {
-  const cached = SYNTAX_CACHE.get(theme);
-  if (cached) return cached;
-  const style = SyntaxStyle.fromTheme(themeSyntax(theme));
-  SYNTAX_CACHE.set(theme, style);
-  return style;
-}
-
 export function MiniChat(props: {
-  api: TuiPluginApi;
+  context: Context;
   host: HostPort;
   cfg: MiniConfig;
   main: string;
@@ -187,16 +45,21 @@ export function MiniChat(props: {
   onSendAndClose: () => void;
 }): JSX.Element {
   const dim = useTerminalDimensions();
-  const theme = () => props.api.theme.current;
-  const syntaxStyle = createMemo(() => buildSyntaxStyle(theme()));
-  const messages = () => props.api.state.session.messages(props.mini);
-  const status = () => props.api.state.session.status(props.mini);
-  const busy = () => status()?.type === "busy";
+  const theme = () => props.context.theme;
+  const syntaxStyle = createMemo(() =>
+    generateSyntax(theme(), props.context.renderer.nativeScene),
+  );
+  const messages = () =>
+    props.context.data.session.message.list(props.mini) ?? [];
+  const status = () => props.context.data.session.status(props.mini);
+  const busy = () => status() === "running";
   const hasMessages = () => messages().length > 0;
-  const height = () =>
-    Math.max(6, Math.min(26, Math.floor(dim().height * 0.45)));
+  const height = () => Math.max(6, dim().height - 12);
 
   const [pulse, setPulse] = createSignal(true);
+  onMount(() => {
+    props.context.ui.dialog.set({ size: props.cfg.size, centered: true });
+  });
   createEffect(() => {
     if (!busy()) {
       setPulse(true);
@@ -207,20 +70,21 @@ export function MiniChat(props: {
   });
 
   const statusView = () => {
-    const current = status();
-    if (current?.type === "busy")
-      return <text fg={theme().accent}>{pulse() ? "●" : "○"} working</text>;
-    if (current?.type === "retry")
-      return <text fg={theme().warning}>◉ retrying {current.attempt}</text>;
-    return <text fg={theme().textMuted}>○ idle</text>;
+    if (busy())
+      return (
+        <text fg={theme().text.feedback.info.base}>
+          {pulse() ? "●" : "○"} working
+        </text>
+      );
+    return <text fg={theme().text.muted}>○ idle</text>;
   };
 
   const thinking = () => {
     if (!busy()) return false;
     const list = messages();
     const last = list[list.length - 1];
-    if (!last || last.role !== "assistant") return false;
-    return props.api.state.part(last.id).length === 0;
+    if (!last || last.type !== "assistant") return false;
+    return ((last as any).content ?? []).length === 0;
   };
 
   let input: TextareaRenderable | undefined;
@@ -239,7 +103,7 @@ export function MiniChat(props: {
     node.clear();
     void submitPrompt(
       props.host,
-      props.api,
+      props.context,
       props.cfg,
       props.main,
       props.mini,
@@ -260,8 +124,8 @@ export function MiniChat(props: {
       gap={1}
     >
       <box flexDirection="row" justifyContent="space-between">
-        <text fg={theme().textMuted}>
-          <span style={{ fg: theme().accent }}>
+        <text fg={theme().text.muted}>
+          <span style={{ fg: theme().text.feedback.info.base }}>
             <b>MINI</b>
           </span>{" "}
           main {shortID(props.main)}
@@ -269,8 +133,8 @@ export function MiniChat(props: {
         <box flexDirection="row" gap={1}>
           {statusView()}
           <text
-            fg={theme().textMuted}
-            onMouseUp={() => props.api.ui.dialog.clear()}
+            fg={theme().text.muted}
+            onMouseUp={() => props.context.ui.dialog.clear()}
           >
             esc hide
           </text>
@@ -284,8 +148,8 @@ export function MiniChat(props: {
         verticalScrollbarOptions={{
           visible: true,
           trackOptions: {
-            backgroundColor: theme().backgroundElement,
-            foregroundColor: theme().border,
+            backgroundColor: theme().background.base,
+            foregroundColor: theme().border.base,
           },
         }}
       >
@@ -293,8 +157,8 @@ export function MiniChat(props: {
           when={hasMessages()}
           fallback={
             <box flexDirection="column" gap={1}>
-              <text fg={theme().text}>No messages yet.</text>
-              <text fg={theme().textMuted}>
+              <text fg={theme().text.base}>No messages yet.</text>
+              <text fg={theme().text.muted}>
                 Ask a side question — the main session keeps running.
               </text>
             </box>
@@ -303,7 +167,7 @@ export function MiniChat(props: {
           <For each={messages()}>
             {(message) => (
               <Turn
-                api={props.api}
+                context={props.context}
                 message={message}
                 thinking={props.cfg.thinking}
                 syntaxStyle={syntaxStyle()}
@@ -315,11 +179,11 @@ export function MiniChat(props: {
           <box
             border={["left"]}
             borderStyle="single"
-            borderColor={theme().accent}
+            borderColor={theme().text.feedback.info.base}
             paddingLeft={1}
             marginBottom={1}
           >
-            <text fg={theme().textMuted}>thinking…</text>
+            <text fg={theme().text.muted}>thinking…</text>
           </box>
         </Show>
       </scrollbox>
@@ -327,9 +191,9 @@ export function MiniChat(props: {
       <box
         border={true}
         borderStyle="single"
-        borderColor={theme().border}
+        borderColor={theme().border.base}
         paddingX={1}
-        backgroundColor={theme().backgroundPanel}
+        backgroundColor={theme().background.raised.base}
       >
         <textarea
           ref={focus}
@@ -337,26 +201,34 @@ export function MiniChat(props: {
           padding={1}
           keyBindings={MINI_KEYBINDINGS}
           placeholder="Ask a side question…"
-          textColor={theme().text}
-          focusedTextColor={theme().text}
-          placeholderColor={theme().textMuted}
-          backgroundColor={theme().backgroundPanel}
-          focusedBackgroundColor={theme().backgroundPanel}
+          textColor={theme().text.base}
+          focusedTextColor={theme().text.base}
+          placeholderColor={theme().text.muted}
+          backgroundColor={theme().background.raised.base}
+          focusedBackgroundColor={theme().background.raised.base}
           onSubmit={send}
         />
       </box>
 
       <box flexDirection="row" justifyContent="space-between">
-        <text fg={theme().textMuted}>enter send · ctrl+j newline</text>
+        <text fg={theme().text.muted}>enter send · ctrl+j newline</text>
         <box flexDirection="row" gap={2}>
           <text
-            fg={hasMessages() ? theme().primary : theme().textMuted}
+            fg={
+              hasMessages()
+                ? theme().text.action.primary.base
+                : theme().text.muted
+            }
             onMouseUp={hasMessages() ? () => props.onSendToMain() : undefined}
           >
             [file to main]
           </text>
           <text
-            fg={hasMessages() ? theme().primary : theme().textMuted}
+            fg={
+              hasMessages()
+                ? theme().text.action.primary.base
+                : theme().text.muted
+            }
             onMouseUp={hasMessages() ? () => props.onSendAndClose() : undefined}
           >
             [send & close]
@@ -368,16 +240,19 @@ export function MiniChat(props: {
 }
 
 function Turn(props: {
-  api: TuiPluginApi;
-  message: Message;
+  context: Context;
+  message: SessionMessageInfo;
   thinking: boolean;
   syntaxStyle: SyntaxStyle;
 }): JSX.Element {
-  const theme = () => props.api.theme.current;
-  const isUser = () => props.message.role === "user";
-  const error = (): AssistantMessage["error"] => {
+  const theme = () => props.context.theme;
+  const isUser = () =>
+    props.message.type === "user" || props.message.type === "synthetic";
+  const error = () => {
     const message = props.message;
-    return message.role === "assistant" ? message.error : undefined;
+    return message.type === "assistant" && message.error
+      ? message.error.message
+      : undefined;
   };
 
   return (
@@ -385,44 +260,70 @@ function Turn(props: {
       flexDirection="column"
       border={["left"]}
       borderStyle={isUser() ? "heavy" : "single"}
-      borderColor={isUser() ? theme().primary : theme().accent}
+      borderColor={
+        isUser()
+          ? theme().text.action.primary.base
+          : theme().text.feedback.info.base
+      }
       paddingLeft={1}
       marginBottom={1}
     >
-      <text fg={isUser() ? theme().primary : theme().accent}>
+      <text
+        fg={
+          isUser()
+            ? theme().text.action.primary.base
+            : theme().text.feedback.info.base
+        }
+      >
         <b>{isUser() ? "YOU" : "MINI"}</b>
       </text>
-      <For each={props.api.state.part(props.message.id)}>
-        {(part) => (
-          <PartView
-            api={props.api}
-            part={part}
-            thinking={props.thinking}
-            syntaxStyle={props.syntaxStyle}
-          />
-        )}
-      </For>
+      <Show
+        when={
+          props.message.type === "user" || props.message.type === "synthetic"
+        }
+      >
+        <PartView
+          context={props.context}
+          part={{ type: "text", text: (props.message as any).text ?? "" }}
+          thinking={props.thinking}
+          syntaxStyle={props.syntaxStyle}
+        />
+      </Show>
+      <Show when={props.message.type === "assistant"}>
+        <For each={(props.message as any).content ?? []}>
+          {(part: any) => (
+            <PartView
+              context={props.context}
+              part={part}
+              thinking={props.thinking}
+              syntaxStyle={props.syntaxStyle}
+            />
+          )}
+        </For>
+      </Show>
       <Show when={error()}>
-        {(failure) => <text fg={theme().error}>{describe(failure())}</text>}
+        {(failure) => (
+          <text fg={theme().text.feedback.error.base}>{failure()}</text>
+        )}
       </Show>
     </box>
   );
 }
 
 function PartView(props: {
-  api: TuiPluginApi;
+  context: Context;
   part: Part;
   thinking: boolean;
   syntaxStyle: SyntaxStyle;
 }): JSX.Element {
-  const theme = () => props.api.theme.current;
+  const theme = () => props.context.theme;
   const part = props.part;
   if (part.type === "text") {
     if (part.text.startsWith(CONTEXT_PREFIX))
       return (
-        <text fg={theme().textMuted}>
-          <span style={{ fg: theme().success }}>┆</span> context · copied from
-          main
+        <text fg={theme().text.muted}>
+          <span style={{ fg: theme().text.feedback.success.base }}>┆</span>{" "}
+          context · copied from main
         </text>
       );
     return (
@@ -430,7 +331,7 @@ function PartView(props: {
         <markdown
           content={part.text}
           syntaxStyle={props.syntaxStyle}
-          fg={theme().text}
+          fg={theme().text.base}
           width="100%"
         />
       </box>
@@ -438,23 +339,35 @@ function PartView(props: {
   }
   if (part.type === "reasoning") {
     if (!props.thinking) return null;
-    return <text fg={theme().textMuted}>{part.text}</text>;
+    return <text fg={theme().text.muted}>{part.text}</text>;
   }
-  if (part.type === "tool") return <ToolView api={props.api} part={part} />;
+  if (part.type === "tool")
+    return <ToolView context={props.context} part={part} />;
   if (part.type === "file")
-    return <text fg={theme().textMuted}>◇ {part.filename ?? part.url}</text>;
+    return <text fg={theme().text.muted}>◇ {part.filename ?? part.url}</text>;
   if (part.type === "agent")
-    return <text fg={theme().textMuted}>@ {part.name}</text>;
+    return <text fg={theme().text.muted}>@ {part.name}</text>;
   if (part.type === "subtask")
-    return <text fg={theme().textMuted}>⌥ {part.description}</text>;
+    return <text fg={theme().text.muted}>⌥ {part.description}</text>;
   return null;
 }
 
-function ToolView(props: { api: TuiPluginApi; part: ToolPart }): JSX.Element {
-  const theme = () => props.api.theme.current;
-  const line = createMemo(() => toolLine(props.part));
+function ToolView(props: { context: Context; part: any }): JSX.Element {
+  const theme = () => props.context.theme;
+  const line = createMemo(() =>
+    toolLine(
+      props.part.state
+        ? (props.part as ToolPart)
+        : {
+            tool: props.part.name ?? props.part.tool,
+            state: props.part.state ?? {},
+          },
+    ),
+  );
   return (
-    <text fg={line().error ? theme().error : theme().textMuted}>
+    <text
+      fg={line().error ? theme().text.feedback.error.base : theme().text.muted}
+    >
       {line().text}
     </text>
   );
@@ -462,7 +375,7 @@ function ToolView(props: { api: TuiPluginApi; part: ToolPart }): JSX.Element {
 
 async function submitPrompt(
   host: HostPort,
-  api: TuiPluginApi,
+  context: Context,
   cfg: MiniConfig,
   main: string,
   mini: string,
@@ -480,7 +393,7 @@ async function submitPrompt(
     });
   } catch (error) {
     onError();
-    api.ui.toast({
+    context.ui.toast.show({
       message: `mini-session: ${describe(error)}`,
       variant: "error",
       duration: 4000,

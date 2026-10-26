@@ -1,5 +1,4 @@
 import { describe, expect, test } from "bun:test";
-import type { Message, Part } from "@opencode-ai/sdk/v2";
 import {
   estimateTokens,
   renderDeliveryTranscript,
@@ -7,12 +6,13 @@ import {
   renderTranscript,
   renderWithinTokenLimit,
   type Entry,
+  type Part,
 } from "./transcript";
 
 const part = (value: Record<string, unknown>): Part => value as unknown as Part;
 
 const entry = (role: "user" | "assistant", parts: Array<Part>): Entry => ({
-  info: { role } as unknown as Message,
+  info: { role },
   parts,
 });
 

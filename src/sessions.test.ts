@@ -1,5 +1,4 @@
 import { beforeEach, describe, expect, test } from "bun:test";
-import type { Message, Part } from "@opencode-ai/sdk/v2";
 import { DEFAULTS, type MiniConfig } from "./config";
 import type {
   CreateSessionOptions,
@@ -10,7 +9,7 @@ import type {
 import { CONTEXT_PREFIX, miniTitle } from "./markers";
 import { MINI_AGENT, MINI_PERMISSION } from "./mini-policy";
 import { createMiniSessions, type MiniSessions } from "./sessions";
-import type { Entry } from "./transcript";
+import type { Entry, Part } from "./transcript";
 
 type StoredSession = SessionInfo & { parentID?: string };
 
@@ -83,7 +82,7 @@ const part = (text: string): Part =>
   ({ type: "text", text }) as unknown as Part;
 
 const entry = (role: "user" | "assistant", text: string): Entry => ({
-  info: { role } as unknown as Message,
+  info: { role },
   parts: [part(text)],
 });
 
@@ -287,7 +286,7 @@ describe("finish", () => {
     const mini = opened.value.target.mini;
     const mixed = (role: "user" | "assistant", parts: Array<unknown>): Entry =>
       ({
-        info: { role } as unknown as Message,
+        info: { role },
         parts: parts as unknown as Entry["parts"],
       }) as Entry;
     host.messagesBy.set(mini, [
@@ -321,7 +320,7 @@ describe("finish", () => {
     const mini = opened.value.target.mini;
     host.messagesBy.set(mini, [
       {
-        info: { role: "assistant" } as unknown as Message,
+        info: { role: "assistant" },
         parts: [{ type: "tool", tool: "bash" } as unknown as Part],
       },
     ]);
@@ -340,7 +339,7 @@ describe("finish", () => {
     const mini = opened.value.target.mini;
     const mixed = (role: "user" | "assistant", parts: Array<unknown>): Entry =>
       ({
-        info: { role } as unknown as Message,
+        info: { role },
         parts: parts as unknown as Entry["parts"],
       }) as Entry;
     host.messagesBy.set(mini, [

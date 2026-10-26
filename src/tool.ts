@@ -1,8 +1,20 @@
-import type { ToolPart, ToolState } from "@opencode-ai/sdk/v2";
+export type ToolState = {
+  status: "pending" | "running" | "completed" | "error" | string;
+  input?: Record<string, unknown>;
+  title?: string;
+  error?: unknown;
+};
+
+export type ToolPart = {
+  tool?: string;
+  name?: string;
+  state: ToolState;
+};
 
 const MAX_LABEL = 80;
 
 const PRIMARY_KEYS: Record<string, string> = {
+  shell: "command",
   bash: "command",
   read: "filePath",
   write: "filePath",
@@ -11,6 +23,7 @@ const PRIMARY_KEYS: Record<string, string> = {
   grep: "pattern",
   webfetch: "url",
   websearch: "query",
+  subagent: "prompt",
   task: "description",
   skill: "name",
 };
@@ -85,21 +98,22 @@ function invalidLabel(state: ToolState): string | undefined {
 
 export function toolLine(part: ToolPart): { text: string; error: boolean } {
   const state = part.state;
-  if (part.tool === "invalid") {
+  const toolName = part.tool ?? part.name ?? "tool";
+  if (toolName === "invalid") {
     const label = invalidLabel(state);
     const suffix = label ? ` · ${label}` : "";
     return { text: `✕ invalid${suffix}`, error: true };
   }
-  const label = toolLabel(part.tool, state);
+  const label = toolLabel(toolName, state);
   const suffix = label ? ` · ${label}` : "";
   switch (state.status) {
     case "pending":
-      return { text: `· ${part.tool}${suffix}`, error: false };
+      return { text: `· ${toolName}${suffix}`, error: false };
     case "running":
-      return { text: `→ ${part.tool}${suffix}…`, error: false };
+      return { text: `→ ${toolName}${suffix}…`, error: false };
     case "completed":
-      return { text: `✓ ${part.tool}${suffix}`, error: false };
+      return { text: `✓ ${toolName}${suffix}`, error: false };
     default:
-      return { text: `✕ ${part.tool} · ${state.error}`, error: true };
+      return { text: `✕ ${toolName} · ${state.error}`, error: true };
   }
 }

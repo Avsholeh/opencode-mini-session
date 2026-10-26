@@ -13,22 +13,18 @@ opencode plugin @avsholeh/opencode-mini-session
 Add `-g` / `--global` to install for all projects. You can also install it from
 the TUI command palette: open **Plugins** and press `shift+i`.
 
-Or add it to `tui.json` manually:
+Or add it to `cli.json` manually:
 
 ```json
 {
-  "$schema": "https://opencode.ai/tui.json",
-  "plugin": ["@avsholeh/opencode-mini-session"]
+  "$schema": "https://opencode.ai/cli.json",
+  "plugins": ["@avsholeh/opencode-mini-session"]
 }
 ```
 
-- Global config: `~/.config/opencode/tui.json`
-- Project config: `.opencode/tui.json`
+- Global config: `~/.config/opencode/cli.json`
 
-TUI plugins are configured in `tui.json`, **not** `opencode.json`. Restart
-opencode after changing the config.
-
-Pin a version with `@avsholeh/opencode-mini-session@0.1.0` if you need
+Pin a version with `@avsholeh/opencode-mini-session@0.2.0` if you need
 reproducibility.
 
 ## Usage
@@ -52,48 +48,48 @@ reproducibility.
 In the overlay, press `enter` to send and `esc` to close.
 
 Mini sessions are always strict read-only: they run as the `plan` agent with
-`edit:* → deny` and `bash:* → deny`. If the `plan` agent is unavailable the
+`edit:* → deny` and `shell:* → deny`. If the `plan` agent is unavailable the
 open fails instead of falling back to a writable agent. Run `/mini-clean` and
 reopen to migrate minis created before this policy.
 
 ## Options
 
-Options are passed as the second element of the `plugin` tuple:
+Options can be passed in `cli.json`:
 
 ```json
 {
-  "$schema": "https://opencode.ai/tui.json",
-  "plugin": [
-    [
-      "@avsholeh/opencode-mini-session",
-      {
+  "$schema": "https://opencode.ai/cli.json",
+  "plugins": [
+    {
+      "package": "@avsholeh/opencode-mini-session",
+      "options": {
         "tokenLimit": 50000,
         "model": "anthropic/claude-sonnet-4.6",
         "thinking": false,
-        "size": "large",
+        "size": "xlarge",
         "keybinds": {
           "mini.open": "<leader>i",
           "mini.fresh": "<leader>o",
           "mini.clean": "<leader>d"
         }
       }
-    ]
+    }
   ]
 }
 ```
 
-| Option       | Type                                                                     | Default   | Description                                                                                                                          |
-| ------------ | ------------------------------------------------------------------------ | --------- | ------------------------------------------------------------------------------------------------------------------------------------ |
-| `tokenLimit` | `number`                                                                 | `50000`   | Maximum tokens of main-session context to copy. Oldest turns are dropped to fit.                                                     |
-| `model`      | `string`                                                                 | inherit   | Model for mini-session questions as `providerID/modelID`. Omit to inherit the main session model.                                    |
-| `thinking`   | `boolean`                                                                | `false`   | Show reasoning/thinking parts.                                                                                                       |
-| `size`       | `"medium" \| "large" \| "xlarge"`                                        | `"large"` | Overlay size.                                                                                                                        |
-| `keybinds`   | `{ "mini.open"?: string; "mini.fresh"?: string; "mini.clean"?: string }` | see below | Keybinds used to open the overlay with (`<leader>i`) or without (`<leader>o`) context, and to clean all mini sessions (`<leader>d`). |
+| Option       | Type                                                                     | Default    | Description                                                                                                                          |
+| ------------ | ------------------------------------------------------------------------ | ---------- | ------------------------------------------------------------------------------------------------------------------------------------ |
+| `tokenLimit` | `number`                                                                 | `50000`    | Maximum tokens of main-session context to copy. Oldest turns are dropped to fit.                                                     |
+| `model`      | `string`                                                                 | inherit    | Model for mini-session questions as `providerID/modelID`. Omit to inherit the main session model.                                    |
+| `thinking`   | `boolean`                                                                | `false`    | Show reasoning/thinking parts.                                                                                                       |
+| `size`       | `"medium" \| "large" \| "xlarge"`                                        | `"xlarge"` | Overlay size.                                                                                                                        |
+| `keybinds`   | `{ "mini.open"?: string; "mini.fresh"?: string; "mini.clean"?: string }` | see below  | Keybinds used to open the overlay with (`<leader>i`) or without (`<leader>o`) context, and to clean all mini sessions (`<leader>d`). |
 
 `model` and `keybinds` can also be changed at runtime with `/mini-model` and the
 command palette.
 
-`<leader>` resolves to the leader key configured in `tui.json` (default
+`<leader>` resolves to the leader key configured in `cli.json` (default
 `ctrl+x`).
 
 ## Troubleshooting

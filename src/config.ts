@@ -15,7 +15,7 @@ export type MiniConfig = {
 export const DEFAULTS: MiniConfig = {
   tokenLimit: 50000,
   thinking: false,
-  size: "large",
+  size: "xlarge",
   openKey: "<leader>i",
   freshKey: "<leader>o",
   cleanKey: "<leader>d",
@@ -43,7 +43,10 @@ export function parseConfig(
         : DEFAULTS.tokenLimit,
     model: parseModelOverride(options?.model),
     thinking: options?.thinking === true,
-    size: size === "medium" || size === "xlarge" ? size : DEFAULTS.size,
+    size:
+      size === "medium" || size === "large" || size === "xlarge"
+        ? size
+        : DEFAULTS.size,
     openKey: typeof open === "string" && open.trim() ? open : DEFAULTS.openKey,
     freshKey:
       typeof fresh === "string" && fresh.trim() ? fresh : DEFAULTS.freshKey,
