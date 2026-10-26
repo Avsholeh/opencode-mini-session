@@ -50,7 +50,12 @@ export function MiniChat(props: {
     generateSyntax(theme(), props.context.renderer.nativeScene),
   );
   const messages = () =>
-    props.context.data.session.message.list(props.mini) ?? [];
+    (props.context.data.session.message.list(props.mini) ?? []).filter(
+      (message) =>
+        message.type === "user" ||
+        message.type === "synthetic" ||
+        message.type === "assistant",
+    );
   const status = () => props.context.data.session.status(props.mini);
   const busy = () => status() === "running";
   const hasMessages = () => messages().length > 0;
@@ -248,6 +253,9 @@ function Turn(props: {
   const theme = () => props.context.theme;
   const isUser = () =>
     props.message.type === "user" || props.message.type === "synthetic";
+  const isAssistant = () => props.message.type === "assistant";
+  if (!isUser() && !isAssistant()) return null;
+
   const error = () => {
     const message = props.message;
     return message.type === "assistant" && message.error
