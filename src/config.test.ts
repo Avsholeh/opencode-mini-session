@@ -19,8 +19,9 @@ describe("parseConfig", () => {
     });
   });
 
-  test("accepts medium size", () => {
+  test("accepts medium and large size", () => {
     expect(parseConfig({ size: "medium" }).size).toBe("medium");
+    expect(parseConfig({ size: "large" }).size).toBe("large");
   });
 
   test("falls back on invalid size", () => {

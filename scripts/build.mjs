@@ -8,8 +8,9 @@ const result = await Bun.build({
   format: "esm",
   plugins: [solidPlugin],
   external: [
-    "@opencode-ai/plugin",
-    "@opencode-ai/sdk",
+    "@opencode/client",
+    "@opencode/plugin",
+    "@opencode/theme",
     "@opentui/core",
     "@opentui/keymap",
     "@opentui/solid",

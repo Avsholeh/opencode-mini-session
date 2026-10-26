@@ -4,29 +4,36 @@
   "description": "Floating mini side-chat overlay for the opencode TUI",
   "license": "MIT",
   "type": "module",
+  "main": "./dist/index.js",
   "exports": {
+    ".": "./dist/index.js",
     "./tui": "./dist/index.js"
   },
   "files": [
     "dist",
+    "tui.js",
+    "tui.ts",
     "README.md",
     "LICENSE",
     "CHANGELOG.md"
   ],
   "engines": {
-    "opencode": ">=1.18 <2"
+    "opencode": ">=2.0.0"
   },
   "dependencies": {
-    "@opentui/core": "^0.5.11",
-    "@opentui/solid": "^0.5.11",
-    "solid-js": "^1.9.12"
+    "@opentui/core": "0.6.8",
+    "@opentui/solid": "0.6.8",
+    "solid-js": "^1.9.15"
   },
   "peerDependencies": {
-    "@opencode-ai/plugin": "^1.18.27"
+    "@opencode/plugin": "^2.1.4",
+    "@opentui/core": ">=0.6.6",
+    "@opentui/solid": ">=0.6.6"
   },
   "devDependencies": {
-    "@opencode-ai/plugin": "^1.18.27",
-    "@opencode-ai/sdk": "^1.18.30",
+    "@opencode/client": "^2.1.4",
+    "@opencode/plugin": "^2.1.4",
+    "@opencode/theme": "^2.1.4",
     "@types/bun": "^1.4.2",
     "@types/node": "^24.0.0",
     "prettier": "^3.9.9",

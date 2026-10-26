@@ -20,12 +20,16 @@ export function describe(error: unknown): string {
 }
 
 export function unwrap<T>(
-  result: { data?: T; error?: unknown },
+  result: T | { data?: T; error?: unknown },
   what: string,
 ): T {
-  if (result.error !== undefined)
-    throw new Error(`could not ${what}: ${describe(result.error)}`);
-  if (result.data === undefined || result.data === null)
-    throw new Error(`could not ${what}`);
-  return result.data;
+  if (result !== null && typeof result === "object") {
+    if ("error" in result && (result as any).error !== undefined) {
+      throw new Error(`could not ${what}: ${describe((result as any).error)}`);
+    }
+    if ("data" in result) {
+      return (result as any).data as T;
+    }
+  }
+  return result as T;
 }

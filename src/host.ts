@@ -1,7 +1,6 @@
-import type { TuiPluginApi } from "@opencode-ai/plugin/tui";
-import type { Message, TextPartInput } from "@opencode-ai/sdk/v2";
+import type { Context } from "@opencode/plugin/tui/context";
 import type { MiniPermissionRule } from "./mini-policy";
-import type { Entry } from "./transcript";
+import type { Entry, Part } from "./transcript";
 import { unwrap } from "./result";
 
 export type SessionInfo = {
@@ -29,10 +28,7 @@ export type HostPort = {
   currentSessionID(): string | undefined;
   listSessions(): Promise<Array<SessionInfo>>;
   sessionExists(id: string): boolean;
-  createSession(
-    title: string,
-    options: CreateSessionOptions,
-  ): Promise<string>;
+  createSession(title: string, options: CreateSessionOptions): Promise<string>;
   renameSession(id: string, title: string): Promise<void>;
   updateSessionPermission(
     id: string,
@@ -44,37 +40,37 @@ export type HostPort = {
   prompt(id: string, input: PromptInput): Promise<void>;
 };
 
-export function createHost(api: TuiPluginApi): HostPort {
+export function createHost(context: Context): HostPort {
   return {
     currentSessionID() {
-      const current = api.route.current;
-      if (current.name === "session" && "params" in current) {
-        const id = current.params?.sessionID;
-        if (typeof id === "string") return id;
+      const current = context.ui.router.current();
+      if (current.type === "session" && typeof current.sessionID === "string") {
+        return current.sessionID;
       }
       return undefined;
     },
 
     async listSessions() {
-      const sessions = unwrap(await api.client.session.list(), "list sessions");
-      return sessions.map((session) => ({
+      const res = unwrap(await context.client.session.list(), "list sessions");
+      const sessions = Array.isArray(res) ? res : ((res as any).data ?? []);
+      return (sessions as Array<any>).map((session) => ({
         id: session.id,
-        title: session.title,
-        parentID: session.parentID,
+        title: session.title ?? "",
+        parentID: session.parentID ?? undefined,
         created: session.time?.created ?? 0,
       }));
     },
 
     sessionExists(id) {
-      return api.state.session.get(id) !== undefined;
+      return context.data.session.get(id) !== undefined;
     },
 
     async createSession(title, options) {
       const created = unwrap(
-        await api.client.session.create({
+        await context.client.session.create({
           title,
           agent: options.agent,
-          permission: [...options.permission],
+          permissions: [...options.permission],
         }),
         "create mini session",
       );
@@ -83,16 +79,16 @@ export function createHost(api: TuiPluginApi): HostPort {
 
     async renameSession(id, title) {
       unwrap(
-        await api.client.session.update({ sessionID: id, title }),
+        await context.client.session.update({ sessionID: id, title }),
         "title mini session",
       );
     },
 
     async updateSessionPermission(id, permission) {
       unwrap(
-        await api.client.session.update({
+        await context.client.session.update({
           sessionID: id,
-          permission: [...permission],
+          permissions: [...permission],
         }),
         "lock mini session permissions",
       );
@@ -100,30 +96,65 @@ export function createHost(api: TuiPluginApi): HostPort {
 
     async deleteSession(id) {
       unwrap(
-        await api.client.session.delete({ sessionID: id }),
+        await context.client.session.remove({ sessionID: id }),
         "delete mini session",
       );
     },
 
     async messages(id) {
-      return unwrap(
-        await api.client.session.messages({ sessionID: id }),
+      const res = unwrap(
+        await context.client.message.list({ sessionID: id }),
         "read session messages",
-      ) as Array<Entry>;
+      );
+      const items = Array.isArray(res) ? res : ((res as any).data ?? []);
+      return items.map((msg: any): Entry => {
+        if (msg.type === "user" || msg.type === "synthetic") {
+          return {
+            info: { role: "user", type: msg.type },
+            parts: [{ type: "text", text: msg.text ?? "" }],
+          };
+        }
+        if (msg.type === "assistant") {
+          const parts: Array<Part> = (msg.content ?? []).map((c: any) => {
+            if (c.type === "tool") {
+              return {
+                type: "tool",
+                tool: c.name ?? c.tool,
+                name: c.name ?? c.tool,
+                state: c.state,
+              };
+            }
+            return c;
+          });
+          return {
+            info: { role: "assistant", type: msg.type },
+            parts,
+          };
+        }
+        return {
+          info: { type: msg.type },
+          parts: [],
+        };
+      });
     },
 
     lastUserModel(id) {
-      const messages = api.state.session.messages(id);
+      const messages = context.data.session.message.list(id);
       for (let index = messages.length - 1; index >= 0; index -= 1) {
-        const message = messages[index] as Message & {
-          model?: ModelRef;
-          agent?: string;
-        };
-        if (message.role === "user" && message.model) {
+        const message = messages[index] as any;
+        if (message.type === "model-switched" && message.model) {
           return {
             model: {
               providerID: message.model.providerID,
-              modelID: message.model.modelID,
+              modelID: message.model.modelID ?? message.model.id,
+            },
+          };
+        }
+        if (message.type === "assistant" && message.model) {
+          return {
+            model: {
+              providerID: message.model.providerID,
+              modelID: message.model.modelID ?? message.model.id,
             },
             agent: message.agent,
           };
@@ -133,17 +164,44 @@ export function createHost(api: TuiPluginApi): HostPort {
     },
 
     async prompt(id, input) {
-      const parts: Array<TextPartInput> = input.parts;
-      unwrap(
-        await api.client.session.prompt({
-          sessionID: id,
-          noReply: input.noReply,
-          model: input.model,
-          agent: input.agent,
-          parts,
-        }),
-        "send message to session",
-      );
+      if (input.model) {
+        try {
+          await context.client.session.switchModel({
+            sessionID: id,
+            model: {
+              id: input.model.modelID,
+              providerID: input.model.providerID,
+            },
+          });
+        } catch {}
+      }
+      if (input.agent) {
+        try {
+          await context.client.session.switchAgent({
+            sessionID: id,
+            agent: input.agent,
+          });
+        } catch {}
+      }
+      const text = input.parts.map((p) => p.text).join("\n");
+      if (input.noReply) {
+        unwrap(
+          await context.client.session.synthetic({
+            sessionID: id,
+            text,
+            resume: false,
+          }),
+          "send synthetic message to session",
+        );
+      } else {
+        unwrap(
+          await context.client.session.prompt({
+            sessionID: id,
+            text,
+          }),
+          "send message to session",
+        );
+      }
     },
   };
 }

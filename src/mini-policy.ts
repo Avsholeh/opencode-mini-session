@@ -1,12 +1,12 @@
 export const MINI_AGENT = "plan" as const;
 
 export type MiniPermissionRule = {
-  permission: string;
-  pattern: string;
-  action: "allow" | "deny" | "ask";
+  action: string;
+  resource: string;
+  effect: "allow" | "deny" | "ask";
 };
 
 export const MINI_PERMISSION: ReadonlyArray<MiniPermissionRule> = [
-  { permission: "edit", pattern: "*", action: "deny" },
-  { permission: "bash", pattern: "*", action: "deny" },
+  { action: "edit", resource: "*", effect: "deny" },
+  { action: "shell", resource: "*", effect: "deny" },
 ];

@@ -1,19 +1,15 @@
-import type { TuiPlugin, TuiPluginModule } from "@opencode-ai/plugin/tui";
+import { Plugin } from "@opencode/plugin/tui";
 import { registerCommands } from "./commands";
 import { parseConfig } from "./config";
 import { createHost } from "./host";
 import { createMiniSessions } from "./sessions";
 
-const tui: TuiPlugin = async (api, options) => {
-  const config = parseConfig(options);
-  const host = createHost(api);
-  const sessions = createMiniSessions({ host, config });
-  registerCommands(api, { sessions, host, config });
-};
-
-const plugin: TuiPluginModule & { id: string } = {
+export default Plugin.define({
   id: "avsholeh.mini-session",
-  tui,
-};
-
-export default plugin;
+  setup(context) {
+    const config = parseConfig(context.options);
+    const host = createHost(context);
+    const sessions = createMiniSessions({ host, config });
+    registerCommands(context, { sessions, host, config });
+  },
+});
