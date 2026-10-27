@@ -1,6 +1,6 @@
 {
   "name": "@avsholeh/opencode-mini-session",
-  "version": "1.0.1",
+  "version": "1.0.2",
   "description": "Floating mini side-chat overlay for the opencode TUI",
   "license": "MIT",
   "type": "module",
