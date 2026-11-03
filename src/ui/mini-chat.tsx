@@ -20,7 +20,7 @@ import type { Context } from "@opencode/plugin/tui/context";
 import type { SessionMessageInfo } from "@opencode/client";
 import type { MiniConfig } from "../config";
 import type { HostPort } from "../host";
-import { CONTEXT_PREFIX, shortID } from "../markers";
+import { CONTEXT_PREFIX, isSystemReminder, shortID } from "../markers";
 import { resolvePromptModel, type ModelRef } from "../model";
 import { MINI_AGENT } from "../mini-policy";
 import { describe } from "../result";
@@ -52,9 +52,10 @@ export function MiniChat(props: {
   const messages = () =>
     (props.context.data.session.message.list(props.mini) ?? []).filter(
       (message) =>
-        message.type === "user" ||
-        message.type === "synthetic" ||
-        message.type === "assistant",
+        (message.type === "user" ||
+          message.type === "synthetic" ||
+          message.type === "assistant") &&
+        !isSystemReminder(message),
     );
   const status = () => props.context.data.session.status(props.mini);
   const busy = () => status() === "running";
@@ -64,6 +65,7 @@ export function MiniChat(props: {
   const [pulse, setPulse] = createSignal(true);
   onMount(() => {
     props.context.ui.dialog.set({ size: props.cfg.size, centered: true });
+    void props.context.data.session.message.sync(props.mini).catch(() => {});
   });
   createEffect(() => {
     if (!busy()) {
@@ -72,6 +74,15 @@ export function MiniChat(props: {
     }
     const timer = setInterval(() => setPulse((value) => !value), 500);
     onCleanup(() => clearInterval(timer));
+  });
+
+  let prevStatus: "idle" | "running" | undefined;
+  createEffect(() => {
+    const currentStatus = status();
+    if (prevStatus === "running" && currentStatus === "idle") {
+      void props.context.data.session.message.sync(props.mini).catch(() => {});
+    }
+    prevStatus = currentStatus;
   });
 
   const statusView = () => {
@@ -255,6 +266,7 @@ function Turn(props: {
     props.message.type === "user" || props.message.type === "synthetic";
   const isAssistant = () => props.message.type === "assistant";
   if (!isUser() && !isAssistant()) return null;
+  if (isSystemReminder(props.message)) return null;
 
   const error = () => {
     const message = props.message;
@@ -334,6 +346,7 @@ function PartView(props: {
           context · copied from main
         </text>
       );
+    if (isSystemReminder(part.text)) return null;
     return (
       <box width="100%">
         <markdown
@@ -399,6 +412,7 @@ async function submitPrompt(
       model,
       agent: MINI_AGENT,
     });
+    void context.data.session.message.sync(mini).catch(() => {});
   } catch (error) {
     onError();
     context.ui.toast.show({
