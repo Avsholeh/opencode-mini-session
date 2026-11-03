@@ -54,7 +54,10 @@ export function MiniChat(props: {
   const syntaxStyle = createMemo(() =>
     generateSyntax(theme(), props.context.renderer.nativeScene),
   );
-  const messages = () =>
+  const [cachedMessages, setCachedMessages] = createSignal<
+    SessionMessageInfo[]
+  >([]);
+  const liveMessages = () =>
     (props.context.data.session.message.list(props.mini) ?? []).filter(
       (message) =>
         (message.type === "user" ||
@@ -62,6 +65,28 @@ export function MiniChat(props: {
           message.type === "assistant") &&
         !isSystemReminder(message),
     );
+  const messages = () => {
+    const list = liveMessages();
+    return list.length > 0 ? list : cachedMessages();
+  };
+
+  let syncing = false;
+  createEffect(() => {
+    const live = liveMessages();
+    if (live.length > 0) {
+      setCachedMessages(live);
+      return;
+    }
+    if (cachedMessages().length > 0 && !syncing) {
+      syncing = true;
+      props.context.data.session.message
+        .sync(props.mini)
+        .catch(() => {})
+        .finally(() => {
+          syncing = false;
+        });
+    }
+  });
   const status = () => props.context.data.session.status(props.mini);
   const busy = () => status() === "running";
   const hasMessages = () => messages().length > 0;
