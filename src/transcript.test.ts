@@ -172,6 +172,45 @@ describe("renderDeliveryTranscript", () => {
     );
     expect(text).toBe("");
   });
+
+  test("strips system-reminder blocks from text in delivery transcript", () => {
+    const text = renderDeliveryTranscript(
+      [
+        entry("user", [
+          part({
+            type: "text",
+            text: "<system-reminder>rules</system-reminder>\nreal question",
+          }),
+        ]),
+        entry("assistant", [
+          part({
+            type: "text",
+            text: "real answer\n<system-reminder>guidelines</system-reminder>",
+          }),
+        ]),
+      ],
+      false,
+    );
+    expect(text).toBe("User:\nreal question\n\nAssistant:\nreal answer");
+    expect(text).not.toContain("<system-reminder>");
+  });
+
+  test("drops entries that only contain system reminders", () => {
+    const text = renderDeliveryTranscript(
+      [
+        entry("user", [
+          part({
+            type: "text",
+            text: "<system-reminder>internal instructions</system-reminder>",
+          }),
+        ]),
+        entry("user", [part({ type: "text", text: "visible prompt" })]),
+      ],
+      false,
+    );
+    expect(text).toBe("User:\nvisible prompt");
+    expect(text).not.toContain("<system-reminder>");
+  });
 });
 
 describe("estimateTokens", () => {

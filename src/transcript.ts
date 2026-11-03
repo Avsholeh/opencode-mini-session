@@ -1,4 +1,4 @@
-import { CONTEXT_PREFIX } from "./markers";
+import { CONTEXT_PREFIX, stripSystemReminder } from "./markers";
 
 export type Part =
   | { type: "text"; text: string }
@@ -134,13 +134,20 @@ export function renderDeliveryTranscript(
   entries: ReadonlyArray<Entry>,
   thinking: boolean,
 ): string {
-  const textOnly = entries.map((entry) => ({
-    ...entry,
-    parts: (entry.parts ?? []).filter((part) => {
-      if (part.type === "reasoning") return true;
-      if (part.type !== "text") return false;
-      return !part.text.startsWith(CONTEXT_PREFIX);
-    }),
-  }));
-  return renderTranscript(textOnly, thinking);
+  const cleanedEntries = entries.map((entry) => {
+    const parts: Array<Part> = [];
+    for (const part of entry.parts ?? []) {
+      if (part.type === "reasoning") {
+        parts.push(part);
+      } else if (part.type === "text") {
+        if (part.text.startsWith(CONTEXT_PREFIX)) continue;
+        const text = stripSystemReminder(part.text);
+        if (text.length > 0) {
+          parts.push({ ...part, text });
+        }
+      }
+    }
+    return { ...entry, parts };
+  });
+  return renderTranscript(cleanedEntries, thinking);
 }

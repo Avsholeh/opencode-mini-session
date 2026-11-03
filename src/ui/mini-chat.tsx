@@ -20,7 +20,12 @@ import type { Context } from "@opencode/plugin/tui/context";
 import type { SessionMessageInfo } from "@opencode/client";
 import type { MiniConfig } from "../config";
 import type { HostPort } from "../host";
-import { CONTEXT_PREFIX, isSystemReminder, shortID } from "../markers";
+import {
+  CONTEXT_PREFIX,
+  isSystemReminder,
+  shortID,
+  stripSystemReminder,
+} from "../markers";
 import { resolvePromptModel, type ModelRef } from "../model";
 import { MINI_AGENT } from "../mini-policy";
 import { describe } from "../result";
@@ -72,7 +77,10 @@ export function MiniChat(props: {
       setPulse(true);
       return;
     }
-    const timer = setInterval(() => setPulse((value) => !value), 500);
+    const timer = setInterval(() => {
+      setPulse((value) => !value);
+      void props.context.data.session.message.sync(props.mini).catch(() => {});
+    }, 500);
     onCleanup(() => clearInterval(timer));
   });
 
@@ -268,6 +276,13 @@ function Turn(props: {
   if (!isUser() && !isAssistant()) return null;
   if (isSystemReminder(props.message)) return null;
 
+  const userText = () => {
+    const raw = (props.message as any).text ?? "";
+    if (raw.startsWith(CONTEXT_PREFIX)) return raw;
+    return stripSystemReminder(raw);
+  };
+  if (isUser() && !userText()) return null;
+
   const error = () => {
     const message = props.message;
     return message.type === "assistant" && message.error
@@ -304,7 +319,7 @@ function Turn(props: {
       >
         <PartView
           context={props.context}
-          part={{ type: "text", text: (props.message as any).text ?? "" }}
+          part={{ type: "text", text: userText() }}
           thinking={props.thinking}
           syntaxStyle={props.syntaxStyle}
         />
@@ -346,11 +361,12 @@ function PartView(props: {
           context · copied from main
         </text>
       );
-    if (isSystemReminder(part.text)) return null;
+    const cleaned = stripSystemReminder(part.text);
+    if (!cleaned) return null;
     return (
       <box width="100%">
         <markdown
-          content={part.text}
+          content={cleaned}
           syntaxStyle={props.syntaxStyle}
           fg={theme().text.base}
           width="100%"
