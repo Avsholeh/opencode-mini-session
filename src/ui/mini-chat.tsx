@@ -20,7 +20,12 @@ import type { Context } from "@opencode/plugin/tui/context";
 import type { SessionMessageInfo } from "@opencode/client";
 import type { MiniConfig } from "../config";
 import type { HostPort } from "../host";
-import { CONTEXT_PREFIX, shortID } from "../markers";
+import {
+  CONTEXT_PREFIX,
+  isSystemReminder,
+  shortID,
+  stripSystemReminder,
+} from "../markers";
 import { resolvePromptModel, type ModelRef } from "../model";
 import { MINI_AGENT } from "../mini-policy";
 import { describe } from "../result";
@@ -49,13 +54,39 @@ export function MiniChat(props: {
   const syntaxStyle = createMemo(() =>
     generateSyntax(theme(), props.context.renderer.nativeScene),
   );
-  const messages = () =>
+  const [cachedMessages, setCachedMessages] = createSignal<
+    SessionMessageInfo[]
+  >([]);
+  const liveMessages = () =>
     (props.context.data.session.message.list(props.mini) ?? []).filter(
       (message) =>
-        message.type === "user" ||
-        message.type === "synthetic" ||
-        message.type === "assistant",
+        (message.type === "user" ||
+          message.type === "synthetic" ||
+          message.type === "assistant") &&
+        !isSystemReminder(message),
     );
+  const messages = () => {
+    const list = liveMessages();
+    return list.length > 0 ? list : cachedMessages();
+  };
+
+  let syncing = false;
+  createEffect(() => {
+    const live = liveMessages();
+    if (live.length > 0) {
+      setCachedMessages(live);
+      return;
+    }
+    if (cachedMessages().length > 0 && !syncing) {
+      syncing = true;
+      props.context.data.session.message
+        .sync(props.mini)
+        .catch(() => {})
+        .finally(() => {
+          syncing = false;
+        });
+    }
+  });
   const status = () => props.context.data.session.status(props.mini);
   const busy = () => status() === "running";
   const hasMessages = () => messages().length > 0;
@@ -64,14 +95,27 @@ export function MiniChat(props: {
   const [pulse, setPulse] = createSignal(true);
   onMount(() => {
     props.context.ui.dialog.set({ size: props.cfg.size, centered: true });
+    void props.context.data.session.message.sync(props.mini).catch(() => {});
   });
   createEffect(() => {
     if (!busy()) {
       setPulse(true);
       return;
     }
-    const timer = setInterval(() => setPulse((value) => !value), 500);
+    const timer = setInterval(() => {
+      setPulse((value) => !value);
+      void props.context.data.session.message.sync(props.mini).catch(() => {});
+    }, 500);
     onCleanup(() => clearInterval(timer));
+  });
+
+  let prevStatus: "idle" | "running" | undefined;
+  createEffect(() => {
+    const currentStatus = status();
+    if (prevStatus === "running" && currentStatus === "idle") {
+      void props.context.data.session.message.sync(props.mini).catch(() => {});
+    }
+    prevStatus = currentStatus;
   });
 
   const statusView = () => {
@@ -255,6 +299,14 @@ function Turn(props: {
     props.message.type === "user" || props.message.type === "synthetic";
   const isAssistant = () => props.message.type === "assistant";
   if (!isUser() && !isAssistant()) return null;
+  if (isSystemReminder(props.message)) return null;
+
+  const userText = () => {
+    const raw = (props.message as any).text ?? "";
+    if (raw.startsWith(CONTEXT_PREFIX)) return raw;
+    return stripSystemReminder(raw);
+  };
+  if (isUser() && !userText()) return null;
 
   const error = () => {
     const message = props.message;
@@ -292,7 +344,7 @@ function Turn(props: {
       >
         <PartView
           context={props.context}
-          part={{ type: "text", text: (props.message as any).text ?? "" }}
+          part={{ type: "text", text: userText() }}
           thinking={props.thinking}
           syntaxStyle={props.syntaxStyle}
         />
@@ -334,10 +386,12 @@ function PartView(props: {
           context · copied from main
         </text>
       );
+    const cleaned = stripSystemReminder(part.text);
+    if (!cleaned) return null;
     return (
       <box width="100%">
         <markdown
-          content={part.text}
+          content={cleaned}
           syntaxStyle={props.syntaxStyle}
           fg={theme().text.base}
           width="100%"
@@ -399,6 +453,7 @@ async function submitPrompt(
       model,
       agent: MINI_AGENT,
     });
+    void context.data.session.message.sync(mini).catch(() => {});
   } catch (error) {
     onError();
     context.ui.toast.show({

@@ -10,7 +10,6 @@ const result = await Bun.build({
   external: [
     "@opencode/client",
     "@opencode/plugin",
-    "@opencode/theme",
     "@opentui/core",
     "@opentui/keymap",
     "@opentui/solid",
